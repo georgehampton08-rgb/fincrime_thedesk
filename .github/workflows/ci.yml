@@ -1,0 +1,45 @@
+name: FinCrime CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  core:
+    name: Core — Build, Test, Determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build core (isolation check)
+        run: cargo build -p fincrime-core
+
+      - name: Run all tests including determinism
+        run: cargo test -p fincrime-core -- --nocapture
+
+      - name: Enforce no platform RNG in core
+        run: |
+          if grep -r "thread_rng\|SystemTime\|Instant::now" core/src/; then
+            echo "ERROR: Platform non-determinism found in /core"
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy (no warnings)
+        run: cargo clippy -p fincrime-core -- -D warnings

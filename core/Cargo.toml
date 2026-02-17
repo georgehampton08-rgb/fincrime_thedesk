@@ -1,0 +1,19 @@
+[package]
+name    = "fincrime-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rusqlite   = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+rand       = { workspace = true }
+rand_pcg   = { workspace = true }
+uuid       = { workspace = true }
+chrono     = { workspace = true }
+thiserror  = { workspace = true }
+anyhow     = { workspace = true }
+log        = { workspace = true }
+
+[dev-dependencies]
+env_logger = { workspace = true }
