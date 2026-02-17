@@ -81,7 +81,7 @@ impl SimSubsystem for MacroSubsystem {
         rng: &mut SubsystemRng,
     ) -> SimResult<Vec<SimEvent>> {
         // Only compute on quarterly boundaries.
-        if tick % MACRO_UPDATE_INTERVAL != 0 {
+        if !tick.is_multiple_of(MACRO_UPDATE_INTERVAL) {
             return Ok(vec![]);
         }
 

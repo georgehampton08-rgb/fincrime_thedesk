@@ -19,6 +19,7 @@
 
 use crate::{
     clock::SimClock,
+    config::ResolutionCode,
     error::SimResult,
     event::{EventLogEntry, SimEvent},
     macro_subsystem::MacroSubsystem,
@@ -28,33 +29,50 @@ use crate::{
     subsystem::SimSubsystem,
     types::{RunId, Tick},
 };
+use std::collections::HashMap;
 
 pub struct SimEngine {
-    pub run_id:     RunId,
-    pub clock:      SimClock,
-    pub rng_bank:   RngBank,
-    seed:           u64,
-    subsystems:     Vec<(SubsystemSlot, Box<dyn SimSubsystem>)>,
-    store:          SimStore,
+    pub run_id:          RunId,
+    pub clock:           SimClock,
+    pub rng_bank:        RngBank,
+    seed:                u64,
+    subsystems:          Vec<(SubsystemSlot, Box<dyn SimSubsystem>)>,
+    pub store:           SimStore,
+    resolution_codes:    HashMap<String, ResolutionCode>,
 }
 
 impl SimEngine {
     pub fn new(run_id: RunId, seed: u64, store: SimStore) -> Self {
         Self {
-            clock:      SimClock::new(run_id.clone()),
-            rng_bank:   RngBank::new(seed),
+            clock:            SimClock::new(run_id.clone()),
+            rng_bank:         RngBank::new(seed),
             seed,
-            subsystems: Vec::new(),
+            subsystems:       Vec::new(),
             store,
             run_id,
+            resolution_codes: HashMap::new(),
         }
     }
 
     /// Build a fully wired engine with all subsystems registered.
     /// Call this instead of new() + manual register() calls.
-    pub fn build(run_id: RunId, seed: u64, store: SimStore) -> Self {
-        let mut engine = SimEngine::new(run_id, seed, store);
+    pub fn build(
+        run_id:    RunId,
+        seed:      u64,
+        store:     &SimStore,
+        data_dir:  &str,
+    ) -> anyhow::Result<Self> {
+        let config = crate::config::SimConfig::load(data_dir)?;
         
+        // Each subsystem needs its own store connection for concurrent access
+        let store_customer   = store.reopen()?;
+        let store_txn        = store.reopen()?;
+        let store_complaint  = store.reopen()?;
+        let store_economics  = store.reopen()?;
+
+        let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
+        engine.resolution_codes = config.resolution_codes.clone();
+
         // EXECUTION ORDER — fixed, documented, never reordered.
         // Phase 0: engine internals (no subsystem)
         // Phase 1A:
@@ -62,11 +80,97 @@ impl SimEngine {
             SubsystemSlot::Macro,
             Box::new(MacroSubsystem::new()),
         );
-        // Phase 1B: Customer, Account, Transaction (stubs for now)
-        // Phase 1C: Complaint (stub)
-        // Phase 1D: Economics (stub)
+        // Phase 1B:
+        engine.register(
+            SubsystemSlot::Customer,
+            Box::new(crate::customer_subsystem::CustomerSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_customer,
+            )),
+        );
+        engine.register(
+            SubsystemSlot::Transaction,
+            Box::new(crate::transaction_subsystem::TransactionSubsystem::new(
+                run_id.clone(),
+                store_txn,
+            )),
+        );
+        // Phase 1C:
+        engine.register(
+            SubsystemSlot::Complaint,
+            Box::new(crate::complaint_subsystem::ComplaintSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_complaint,
+            )),
+        );
+        // Phase 1D:
+        engine.register(
+            SubsystemSlot::Economics,
+            Box::new(crate::economics_subsystem::EconomicsSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_economics,
+            )),
+        );
         // Phase 3:  Fraud, Regulatory (stubs)
-        engine
+        Ok(engine)
+    }
+
+    /// Test-only build using in-memory config.
+    pub fn build_test(run_id: RunId, seed: u64) -> SimResult<Self> {
+        // Use a temp file so reopen() works (in-memory doesn't share across connections)
+        let temp_path = format!("./test_{}.db", uuid::Uuid::new_v4());
+        let store = SimStore::open(&temp_path)?;
+        store.migrate()?;
+        store.insert_run(&run_id, seed, "0.1.0-test")?;
+        
+        let config = crate::config::SimConfig::default_test();
+        let store_customer  = store.reopen()?;
+        let store_txn       = store.reopen()?;
+        let store_complaint = store.reopen()?;
+        let store_economics = store.reopen()?;
+
+        let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
+        engine.resolution_codes = config.resolution_codes.clone();
+
+        engine.register(
+            SubsystemSlot::Macro,
+            Box::new(MacroSubsystem::new()),
+        );
+        engine.register(
+            SubsystemSlot::Customer,
+            Box::new(crate::customer_subsystem::CustomerSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_customer,
+            )),
+        );
+        engine.register(
+            SubsystemSlot::Transaction,
+            Box::new(crate::transaction_subsystem::TransactionSubsystem::new(
+                run_id.clone(),
+                store_txn,
+            )),
+        );
+        engine.register(
+            SubsystemSlot::Complaint,
+            Box::new(crate::complaint_subsystem::ComplaintSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_complaint,
+            )),
+        );
+        engine.register(
+            SubsystemSlot::Economics,
+            Box::new(crate::economics_subsystem::EconomicsSubsystem::new(
+                run_id,
+                config,
+                store_economics,
+            )),
+        );
+        Ok(engine)
     }
 
     /// Register a subsystem. Call in the documented execution order.
@@ -154,7 +258,6 @@ impl SimEngine {
     /// Query the MacroSubsystem's current state.
     /// Used by sim-runner to print end-of-run summaries.
     pub fn last_macro_state(&self) -> Option<&crate::macro_subsystem::MacroState> {
-        use std::any::Any;
         self.subsystems.iter().find_map(|(_, sub)| {
             sub.as_any()
                 .downcast_ref::<crate::macro_subsystem::MacroSubsystem>()
@@ -173,16 +276,96 @@ impl SimEngine {
         log::debug!("Snapshot saved at tick {tick}");
         Ok(())
     }
+
+    // ── Complaint wrapper methods (for tests and sim-runner) ──────────────────
+
+    pub fn store_complaint_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.complaint_count(run_id)
+    }
+
+    pub fn store_sla_breach_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.sla_breach_count(run_id)
+    }
+
+    pub fn store_first_open_complaint(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Option<crate::complaint_subsystem::ComplaintRecord>> {
+        self.store.first_open_complaint(run_id)
+    }
+
+    pub fn store_customer_satisfaction(&self, run_id: &str, customer_id: &str) -> SimResult<f64> {
+        self.store.customer_satisfaction(run_id, customer_id)
+    }
+
+    /// Close a complaint and apply the resolution's satisfaction delta directly.
+    /// Used by tests and the future UI layer for player-initiated resolutions.
+    pub fn store_close_complaint_direct(
+        &self,
+        run_id: &str,
+        complaint_id: &str,
+        tick: Tick,
+        resolution_code: &str,
+        amount_refunded: f64,
+    ) -> SimResult<()> {
+        let complaint = self.store.get_complaint(run_id, complaint_id)?;
+        self.store.close_complaint(run_id, complaint_id, tick, resolution_code, amount_refunded)?;
+        if let Some(rc) = self.resolution_codes.get(resolution_code) {
+            self.store.update_customer_satisfaction(run_id, &complaint.customer_id, rc.satisfaction_delta)?;
+            self.store.adjust_customer_churn_risk(run_id, &complaint.customer_id, rc.churn_risk_delta)?;
+        }
+        Ok(())
+    }
+
+    pub fn store_complaint_backlog(&self, run_id: &str) -> SimResult<i64> {
+        self.store.complaint_backlog(run_id)
+    }
+
+    pub fn store_fee_event_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.fee_event_count(run_id)
+    }
+
+    pub fn store_churned_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.churned_customer_count(run_id)
+    }
+
+    // ── Economics wrapper methods (for tests and sim-runner) ──────────────────
+
+    pub fn store_pnl_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.pnl_count(run_id)
+    }
+
+    pub fn store_latest_pnl(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Option<crate::economics_subsystem::PnLSnapshot>> {
+        let snaps = self.store.latest_pnl_snapshots(run_id, 1)?;
+        Ok(snaps.into_iter().next())
+    }
+
+    pub fn store_all_pnl_snapshots(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Vec<crate::economics_subsystem::PnLSnapshot>> {
+        self.store.all_pnl_snapshots(run_id)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
 /// Used for the event_type column in event_log.
 fn event_type_name(event: &SimEvent) -> &'static str {
     match event {
-        SimEvent::TickStarted { .. }          => "tick_started",
-        SimEvent::TickCompleted { .. }        => "tick_completed",
-        SimEvent::RunInitialized { .. }       => "run_initialized",
-        SimEvent::MacroStateUpdated { .. }    => "macro_state_updated",
-        SimEvent::PlayerCommandReceived { .. }=> "player_command_received",
+        SimEvent::TickStarted { .. }           => "tick_started",
+        SimEvent::TickCompleted { .. }         => "tick_completed",
+        SimEvent::RunInitialized { .. }        => "run_initialized",
+        SimEvent::MacroStateUpdated { .. }     => "macro_state_updated",
+        SimEvent::PlayerCommandReceived { .. } => "player_command_received",
+        SimEvent::CustomerOnboarded { .. }     => "customer_onboarded",
+        SimEvent::CustomerChurned { .. }       => "customer_churned",
+        SimEvent::FeeCharged { .. }            => "fee_charged",
+        SimEvent::ComplaintFiled { .. }        => "complaint_filed",
+        SimEvent::ComplaintResolved { .. }     => "complaint_resolved",
+        SimEvent::SLABreached { .. }           => "sla_breached",
+        SimEvent::QuarterlyPnLComputed { .. }  => "quarterly_pnl_computed",
     }
 }

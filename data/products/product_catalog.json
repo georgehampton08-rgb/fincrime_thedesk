@@ -1,0 +1,79 @@
+{
+  "products": [
+    {
+      "product_id": "basic_checking",
+      "product_type": "checking",
+      "tier": "basic",
+      "label": "Basic Checking",
+      "monthly_fee": 0.0,
+      "overdraft_fee": 27.08,
+      "nsf_fee": 17.72,
+      "atm_fee": 2.50,
+      "wire_fee": 25.0,
+      "interest_rate": 0.0,
+      "min_balance_waive": null,
+      "min_dd_waive": null,
+      "target_segment": "mass_market"
+    },
+    {
+      "product_id": "standard_checking",
+      "product_type": "checking",
+      "tier": "standard",
+      "label": "Standard Checking",
+      "monthly_fee": 12.0,
+      "overdraft_fee": 27.08,
+      "nsf_fee": 17.72,
+      "atm_fee": 2.50,
+      "wire_fee": 25.0,
+      "interest_rate": 0.001,
+      "min_balance_waive": 1500.0,
+      "min_dd_waive": 500.0,
+      "target_segment": "mass_market,mid_tier"
+    },
+    {
+      "product_id": "premium_checking",
+      "product_type": "checking",
+      "tier": "premium",
+      "label": "Premium Checking",
+      "monthly_fee": 25.0,
+      "overdraft_fee": 0.0,
+      "nsf_fee": 0.0,
+      "atm_fee": 0.0,
+      "wire_fee": 0.0,
+      "interest_rate": 0.003,
+      "min_balance_waive": 10000.0,
+      "min_dd_waive": null,
+      "target_segment": "mid_tier"
+    },
+    {
+      "product_id": "student_checking",
+      "product_type": "checking",
+      "tier": "student",
+      "label": "Student Checking",
+      "monthly_fee": 0.0,
+      "overdraft_fee": 0.0,
+      "nsf_fee": 0.0,
+      "atm_fee": 2.50,
+      "wire_fee": 15.0,
+      "interest_rate": 0.0,
+      "min_balance_waive": null,
+      "min_dd_waive": null,
+      "target_segment": "student"
+    },
+    {
+      "product_id": "business_checking",
+      "product_type": "checking",
+      "tier": "business",
+      "label": "Business Checking",
+      "monthly_fee": 15.0,
+      "overdraft_fee": 35.0,
+      "nsf_fee": 20.0,
+      "atm_fee": 3.0,
+      "wire_fee": 30.0,
+      "interest_rate": 0.0005,
+      "min_balance_waive": 5000.0,
+      "min_dd_waive": null,
+      "target_segment": "small_business"
+    }
+  ]
+}

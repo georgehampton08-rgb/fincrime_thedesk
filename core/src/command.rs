@@ -11,9 +11,14 @@ pub enum PlayerCommand {
     Resume,
     SetSpeed { speed: crate::clock::SimSpeed },
 
+    // ── Phase 1C ──────────────────────────────────
+    CloseComplaint {
+        complaint_id:    String,
+        resolution_code: String,
+    },
+
     // ── Phase 1D+ ─────────────────────────────────
     // SetProductFee { product_id: String, fee_type: String, amount: f64 },
-    // CloseComplaint { complaint_id: String, resolution_code: String },
 
     // ── Phase 2+ ──────────────────────────────────
     // SetRiskAppetite { parameter: String, value: f64 },

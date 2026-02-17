@@ -4,22 +4,16 @@
 //! They must produce byte-identical event logs.
 //! Any divergence is a blocker — do not merge until fixed.
 
-use fincrime_core::{
-    engine::SimEngine,
-    store::SimStore,
-};
+use fincrime_core::engine::SimEngine;
 
 fn build_engine(seed: u64) -> SimEngine {
-    let store = SimStore::in_memory().expect("in-memory store");
-    store.migrate().expect("migration");
     let run_id = format!("det-test-{seed}");
-    store.insert_run(&run_id, seed, "0.1.0-test").expect("insert run");
-    SimEngine::build(run_id, seed, store)
+    SimEngine::build_test(run_id, seed).expect("build test engine")
 }
 
 fn collect_event_log(engine: &SimEngine, run_id: &str) -> Vec<String> {
     // Collect all event payloads in tick+id order.
-    // We read directly from the in-memory store via a helper.
+    // We read directly from the store via a helper.
     // This is acceptable in tests — production code uses the engine API.
     (0..=engine.clock.current_tick)
         .flat_map(|tick| {
@@ -78,15 +72,8 @@ fn different_seeds_produce_different_logs() {
 
 #[test]
 fn macro_updates_on_quarterly_boundaries_only() {
-    use fincrime_core::engine::SimEngine;
-    use fincrime_core::store::SimStore;
-
-    let store = SimStore::in_memory().unwrap();
-    store.migrate().unwrap();
     let run_id = "macro-boundary-test".to_string();
-    store.insert_run(&run_id, 1, "test").unwrap();
-
-    let mut engine = SimEngine::build(run_id.clone(), 1, store);
+    let mut engine = SimEngine::build_test(run_id.clone(), 1).expect("build engine");
     engine.run_ticks(91).unwrap(); // just past first quarter
 
     // Collect all events
@@ -109,13 +96,7 @@ fn macro_updates_on_quarterly_boundaries_only() {
 
 #[test]
 fn engine_pauses_and_resumes_correctly() {
-    use fincrime_core::engine::SimEngine;
-    use fincrime_core::store::SimStore;
-
-    let store = SimStore::in_memory().unwrap();
-    store.migrate().unwrap();
-    store.insert_run("pause-test", 7, "test").unwrap();
-    let mut engine = SimEngine::build("pause-test".to_string(), 7, store);
+    let mut engine = SimEngine::build_test("pause-test".to_string(), 7).expect("build engine");
 
     // Should start paused
     assert!(engine.clock.paused);

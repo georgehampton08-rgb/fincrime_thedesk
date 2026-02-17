@@ -32,11 +32,58 @@ pub enum SimEvent {
         command_type: String,
     },
 
-    // ── Phase 1+ events added here as stubs ────────
-    // CustomerOnboarded   { .. }
-    // TransactionBooked   { .. }
-    // ComplaintFiled      { .. }
-    // etc.
+    // ── Phase 1B: Customer and transaction events ──
+    CustomerOnboarded {
+        tick:        Tick,
+        customer_id: EntityId,
+        segment:     String,
+        account_id:  EntityId,
+    },
+    CustomerChurned {
+        tick:        Tick,
+        customer_id: EntityId,
+        segment:     String,
+        churn_risk:  f64,
+    },
+    FeeCharged {
+        tick:        Tick,
+        customer_id: EntityId,
+        account_id:  EntityId,
+        fee_type:    String,  // "overdraft" | "nsf" | "atm"
+        amount:      f64,
+    },
+
+    // ── Phase 1C: Complaint and service events ─────
+    ComplaintFiled {
+        tick:         Tick,
+        complaint_id: EntityId,
+        customer_id:  EntityId,
+        issue:        String,
+        priority:     String,
+    },
+    ComplaintResolved {
+        tick:               Tick,
+        complaint_id:       EntityId,
+        customer_id:        EntityId,
+        resolution_code:    String,
+        satisfaction_delta: f64,
+    },
+    SLABreached {
+        tick:         Tick,
+        complaint_id: EntityId,
+        customer_id:  EntityId,
+        days_overdue: i32,
+    },
+
+    // ── Phase 1D: Economics events ─────────────────────────────
+    QuarterlyPnLComputed {
+        tick:             Tick,
+        period:           String,
+        gross_income:     f64,
+        pre_tax_profit:   f64,
+        nim:              f64,
+        efficiency_ratio: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

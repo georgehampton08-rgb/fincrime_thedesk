@@ -1,0 +1,90 @@
+{
+  "triggers": [
+    {
+      "event_type": "fee_charged",
+      "fee_type": "overdraft",
+      "probability": 0.12,
+      "issue_category": "fee_dispute",
+      "priority": "standard",
+      "sla_acknowledge_days": 2,
+      "sla_resolve_days": 15
+    },
+    {
+      "event_type": "fee_charged",
+      "fee_type": "nsf",
+      "probability": 0.18,
+      "issue_category": "fee_dispute",
+      "priority": "standard",
+      "sla_acknowledge_days": 2,
+      "sla_resolve_days": 15
+    },
+    {
+      "event_type": "fee_charged",
+      "fee_type": "atm",
+      "probability": 0.08,
+      "issue_category": "fee_dispute",
+      "priority": "low",
+      "sla_acknowledge_days": 3,
+      "sla_resolve_days": 20
+    },
+    {
+      "event_type": "transaction_dispute",
+      "amount_threshold": 200.0,
+      "probability": 0.60,
+      "issue_category": "unauthorized_transaction",
+      "priority": "urgent",
+      "sla_acknowledge_days": 0,
+      "sla_resolve_days": 3
+    },
+    {
+      "event_type": "sla_breach",
+      "prior_breach": true,
+      "probability": 0.35,
+      "issue_category": "service_failure",
+      "priority": "high",
+      "sla_acknowledge_days": 1,
+      "sla_resolve_days": 7
+    },
+    {
+      "event_type": "account_frozen",
+      "probability": 0.80,
+      "issue_category": "service_failure",
+      "priority": "urgent",
+      "sla_acknowledge_days": 0,
+      "sla_resolve_days": 3
+    }
+  ],
+
+  "resolution_codes": [
+    {
+      "code": "monetary_relief",
+      "satisfaction_delta": 0.15,
+      "churn_risk_delta": -0.10,
+      "avg_amount_refunded": 27.08
+    },
+    {
+      "code": "non_monetary_relief",
+      "satisfaction_delta": 0.08,
+      "churn_risk_delta": -0.05,
+      "avg_amount_refunded": 0.0
+    },
+    {
+      "code": "explanation_only",
+      "satisfaction_delta": -0.02,
+      "churn_risk_delta": 0.03,
+      "avg_amount_refunded": 0.0
+    },
+    {
+      "code": "no_error_found",
+      "satisfaction_delta": -0.08,
+      "churn_risk_delta": 0.08,
+      "avg_amount_refunded": 0.0
+    },
+    {
+      "code": "customer_withdrew",
+      "satisfaction_delta": -0.05,
+      "churn_risk_delta": 0.02,
+      "avg_amount_refunded": 0.0
+    }
+  ]
+}

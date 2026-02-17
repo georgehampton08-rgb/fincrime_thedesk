@@ -12,29 +12,47 @@ use crate::{
 
 pub struct SimStore {
     conn: Connection,
+    path: Option<String>,  // None for :memory:, Some(path) for file
 }
 
 impl SimStore {
-    /// Open (or create) the simulation database at `path`.
     pub fn open(path: &str) -> SimResult<Self> {
-        let conn = Connection::open(path)?;
-        // WAL mode: better concurrent read performance.
-        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        let conn = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                | rusqlite::OpenFlags::SQLITE_OPEN_CREATE
+                | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+        )?;
+        // WAL mode only for real files (shared-memory and :memory: ignore it).
+        let _ = conn.execute_batch("PRAGMA journal_mode=WAL;");
         conn.execute_batch("PRAGMA foreign_keys=ON;")?;
-        Ok(Self { conn })
+        Ok(Self { conn, path: Some(path.to_string()) })
     }
 
     /// Open an in-memory database (used in tests).
     pub fn in_memory() -> SimResult<Self> {
-        let conn = Connection::open_in_memory()?;
+        let conn = Connection::open(":memory:")?;
         conn.execute_batch("PRAGMA foreign_keys=ON;")?;
-        Ok(Self { conn })
+        Ok(Self { conn, path: None })
+    }
+
+    /// Reopen a new connection to the same database.
+    /// For in-memory databases, this returns a new in-memory database (isolated).
+    /// For file-based databases, this opens the same file.
+    pub fn reopen(&self) -> SimResult<Self> {
+        match &self.path {
+            Some(p) => Self::open(p),
+            None => Self::in_memory(),
+        }
     }
 
     /// Apply all schema migrations in order.
     pub fn migrate(&self) -> SimResult<()> {
         self.conn.execute_batch(include_str!("../../migrations/001_foundation.sql"))?;
         self.conn.execute_batch(include_str!("../../migrations/002_macro.sql"))?;
+        self.conn.execute_batch(include_str!("../../migrations/003_customers.sql"))?;
+        self.conn.execute_batch(include_str!("../../migrations/004_complaints.sql"))?;
+        self.conn.execute_batch(include_str!("../../migrations/005_economics.sql"))?;
         Ok(())
     }
 
@@ -108,4 +126,702 @@ impl SimStore {
         }).ok();
         Ok(result)
     }
+
+    // ── Customer ──────────────────────────────────────────────────
+
+    pub fn insert_customer(
+        &self, run_id: &str, c: &crate::customer_subsystem::CustomerRecord
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO customer (
+                customer_id, run_id, segment, income_band, risk_band, open_tick,
+                status, churn_risk, satisfaction, monthly_txn_mean, cash_intensity,
+                payroll_amount, has_payroll
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![
+                &c.customer_id, run_id, &c.segment, &c.income_band, &c.risk_band,
+                c.open_tick as i64, &c.status, c.churn_risk, c.satisfaction,
+                c.monthly_txn_mean, c.cash_intensity, c.payroll_amount,
+                if c.has_payroll { 1 } else { 0 }
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn active_customers(
+        &self, run_id: &str
+    ) -> SimResult<Vec<crate::customer_subsystem::CustomerRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT customer_id, segment, income_band, risk_band, open_tick,
+                    status, churn_risk, satisfaction, monthly_txn_mean, cash_intensity,
+                    payroll_amount, has_payroll
+             FROM customer WHERE run_id = ?1 AND status = 'active'"
+        )?;
+        let rows = stmt.query_map(params![run_id], |row| {
+            Ok(crate::customer_subsystem::CustomerRecord {
+                customer_id:      row.get(0)?,
+                segment:          row.get(1)?,
+                income_band:      row.get(2)?,
+                risk_band:        row.get(3)?,
+                open_tick:        row.get::<_, i64>(4)? as u64,
+                status:           row.get(5)?,
+                churn_risk:       row.get(6)?,
+                satisfaction:     row.get(7)?,
+                monthly_txn_mean: row.get(8)?,
+                cash_intensity:   row.get(9)?,
+                payroll_amount:   row.get(10)?,
+                has_payroll:      row.get::<_, i32>(11)? != 0,
+                product_id:       String::new(), // Filled from account if needed
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn churn_customer(
+        &self, run_id: &str, customer_id: &str, _tick: Tick
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer SET status = 'churned' WHERE run_id = ?1 AND customer_id = ?2",
+            params![run_id, customer_id],
+        )?;
+        // Also close all accounts
+        self.conn.execute(
+            "UPDATE account SET status = 'closed' WHERE run_id = ?1 AND customer_id = ?2",
+            params![run_id, customer_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_customer_satisfaction(
+        &self, run_id: &str, customer_id: &str, delta: f64
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer
+             SET satisfaction = MAX(0.0, MIN(1.0, satisfaction + ?1))
+             WHERE run_id = ?2 AND customer_id = ?3",
+            params![delta, run_id, customer_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_customer_churn_satisfaction(
+        &self, run_id: &str, customer_id: &str, churn_risk: f64, satisfaction: f64
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer SET churn_risk = ?1, satisfaction = ?2
+             WHERE run_id = ?3 AND customer_id = ?4",
+            params![churn_risk, satisfaction, run_id, customer_id],
+        )?;
+        Ok(())
+    }
+
+    // ── Account ───────────────────────────────────────────────────
+
+    pub fn insert_account(
+        &self, run_id: &str, account_id: &str, customer_id: &str,
+        product_id: &str, initial_balance: f64, tick: Tick
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO account (account_id, run_id, customer_id, product_id, balance, open_tick, status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'open')",
+            params![account_id, run_id, customer_id, product_id, initial_balance, tick as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn active_accounts(&self, run_id: &str) -> SimResult<Vec<AccountRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT a.account_id, a.customer_id, a.product_id, a.balance,
+                    c.monthly_txn_mean, c.cash_intensity, c.payroll_amount, c.has_payroll
+             FROM account a
+             JOIN customer c ON a.customer_id = c.customer_id AND a.run_id = c.run_id
+             WHERE a.run_id = ?1 AND a.status = 'open' AND c.status = 'active'"
+        )?;
+        let rows = stmt.query_map(params![run_id], |row| {
+            Ok(AccountRow {
+                account_id:       row.get(0)?,
+                customer_id:      row.get(1)?,
+                product_id:       row.get(2)?,
+                balance:          row.get(3)?,
+                monthly_txn_mean: row.get(4)?,
+                cash_intensity:   row.get(5)?,
+                payroll_amount:   row.get(6)?,
+                has_payroll:      row.get::<_, i32>(7)? != 0,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn account_balance(&self, run_id: &str, account_id: &str) -> SimResult<f64> {
+        let balance: f64 = self.conn.query_row(
+            "SELECT balance FROM account WHERE run_id = ?1 AND account_id = ?2",
+            params![run_id, account_id],
+            |row| row.get(0),
+        )?;
+        Ok(balance)
+    }
+
+    pub fn update_account_balance(
+        &self, run_id: &str, account_id: &str, delta: f64
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE account SET balance = balance + ?1 WHERE run_id = ?2 AND account_id = ?3",
+            params![delta, run_id, account_id],
+        )?;
+        Ok(())
+    }
+
+    // ── Transaction ───────────────────────────────────────────────
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_transaction(
+        &self, run_id: &str, txn_id: &str, account_id: &str, tick: Tick,
+        amount: f64, direction: &str, category: &str, counterparty: Option<&str>
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO transactions (txn_id, run_id, account_id, tick, amount, direction, category, counterparty, fraud_flag)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+            params![txn_id, run_id, account_id, tick as i64, amount, direction, category, counterparty],
+        )?;
+        Ok(())
+    }
+
+    // ── Daily aggregate ───────────────────────────────────────────
+
+    pub fn compute_daily_aggregate(
+        &self, run_id: &str, tick: Tick
+    ) -> SimResult<DailyAggregate> {
+        let mut stmt = self.conn.prepare(
+            "SELECT COUNT(*), SUM(amount), SUM(CASE WHEN category = 'overdraft_fee' THEN amount ELSE 0 END)
+             FROM transactions WHERE run_id = ?1 AND tick = ?2"
+        )?;
+        let (txn_count, txn_volume, fee_income): (i64, f64, f64) =
+            stmt.query_row(params![run_id, tick as i64], |row| {
+                Ok((row.get(0)?, row.get(1).unwrap_or(0.0), row.get(2).unwrap_or(0.0)))
+            })?;
+
+        let overdraft_events: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions WHERE run_id = ?1 AND tick = ?2 AND category = 'overdraft_fee'",
+            params![run_id, tick as i64],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        Ok(DailyAggregate {
+            txn_count,
+            txn_volume,
+            fee_income,
+            overdraft_events,
+        })
+    }
+
+    pub fn save_daily_aggregate(
+        &self, run_id: &str, tick: Tick, agg: &DailyAggregate
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO daily_aggregate (run_id, tick, txn_count, txn_volume, fee_income, overdraft_events)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![run_id, tick as i64, agg.txn_count, agg.txn_volume, agg.fee_income, agg.overdraft_events],
+        )?;
+        Ok(())
+    }
+
+    // ── Test helper methods ───────────────────────────────────────
+
+    pub fn customer_count(&self, run_id: &str, status: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM customer WHERE run_id = ?1 AND status = ?2",
+            params![run_id, status],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn txn_count_for_tick(&self, run_id: &str, tick: Tick) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions WHERE run_id = ?1 AND tick = ?2",
+            params![run_id, tick as i64],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn txn_count_by_category(&self, run_id: &str, tick: Tick, cat: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions WHERE run_id = ?1 AND tick = ?2 AND category = ?3",
+            params![run_id, tick as i64, cat],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn all_txn_amounts(&self, run_id: &str) -> SimResult<Vec<f64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT amount FROM transactions WHERE run_id = ?1 AND category = 'purchase'"
+        )?;
+        let amounts: Vec<f64> = stmt.query_map(params![run_id], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(amounts)
+    }
+
+    pub fn txn_count_total(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    // ── Complaint ──────────────────────────────────────────────────
+
+    pub fn insert_complaint(
+        &self, run_id: &str, c: &crate::complaint_subsystem::ComplaintRecord
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO complaint (
+                complaint_id, run_id, customer_id, account_id, tick_opened, tick_closed,
+                product, issue, priority, status, sla_due_tick, sla_breached,
+                resolution_code, amount_refunded, udaap_flag
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                &c.complaint_id, run_id, &c.customer_id,
+                c.account_id.as_deref(),
+                c.tick_opened as i64,
+                c.tick_closed.map(|t| t as i64),
+                &c.product, &c.issue, &c.priority, &c.status,
+                c.sla_due_tick as i64,
+                if c.sla_breached { 1i32 } else { 0i32 },
+                c.resolution_code.as_deref(),
+                c.amount_refunded,
+                if c.udaap_flag { 1i32 } else { 0i32 },
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_complaint(
+        &self, run_id: &str, complaint_id: &str
+    ) -> SimResult<crate::complaint_subsystem::ComplaintRecord> {
+        self.conn.query_row(
+            "SELECT complaint_id, customer_id, account_id, tick_opened, tick_closed,
+                    product, issue, priority, status, sla_due_tick, sla_breached,
+                    resolution_code, amount_refunded, udaap_flag
+             FROM complaint WHERE run_id = ?1 AND complaint_id = ?2",
+            params![run_id, complaint_id],
+            complaint_row_mapper,
+        ).map_err(Into::into)
+    }
+
+    pub fn open_complaints(
+        &self, run_id: &str
+    ) -> SimResult<Vec<crate::complaint_subsystem::ComplaintRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT complaint_id, customer_id, account_id, tick_opened, tick_closed,
+                    product, issue, priority, status, sla_due_tick, sla_breached,
+                    resolution_code, amount_refunded, udaap_flag
+             FROM complaint WHERE run_id = ?1 AND status = 'open'
+             ORDER BY tick_opened ASC"
+        )?;
+        let rows = stmt.query_map(params![run_id], complaint_row_mapper)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn close_complaint(
+        &self, run_id: &str, complaint_id: &str, tick: Tick,
+        resolution_code: &str, amount_refunded: f64
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE complaint SET status = 'closed', tick_closed = ?1,
+             resolution_code = ?2, amount_refunded = ?3
+             WHERE run_id = ?4 AND complaint_id = ?5",
+            params![tick as i64, resolution_code, amount_refunded, run_id, complaint_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn mark_complaint_sla_breach(
+        &self, run_id: &str, complaint_id: &str
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE complaint SET sla_breached = 1 WHERE run_id = ?1 AND complaint_id = ?2",
+            params![run_id, complaint_id],
+        )?;
+        Ok(())
+    }
+
+    // ── Interaction ────────────────────────────────────────────────
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_interaction(
+        &self, run_id: &str, interaction_id: &str, customer_id: &str,
+        tick: Tick, channel: &str, interaction_type: &str,
+        complaint_id: Option<&str>, outcome: Option<&str>,
+        satisfaction_delta: f64,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO interaction (
+                interaction_id, run_id, customer_id, tick, channel,
+                interaction_type, complaint_id, outcome, satisfaction_delta
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                interaction_id, run_id, customer_id, tick as i64,
+                channel, interaction_type, complaint_id, outcome, satisfaction_delta,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // ── Customer extensions ────────────────────────────────────────
+
+    pub fn adjust_customer_churn_risk(
+        &self, run_id: &str, customer_id: &str, delta: f64
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer
+             SET churn_risk = MAX(0.0, MIN(1.0, churn_risk + ?1))
+             WHERE run_id = ?2 AND customer_id = ?3",
+            params![delta, run_id, customer_id],
+        )?;
+        Ok(())
+    }
+
+    // ── Account helpers ────────────────────────────────────────────
+
+    pub fn account_product(&self, run_id: &str, account_id: &str) -> SimResult<String> {
+        let product: String = self.conn.query_row(
+            "SELECT product_id FROM account WHERE run_id = ?1 AND account_id = ?2",
+            params![run_id, account_id],
+            |row| row.get(0),
+        )?;
+        Ok(product)
+    }
+
+    // ── Complaint aggregates ───────────────────────────────────────
+
+    pub fn compute_complaint_aggregate(
+        &self, run_id: &str, tick: Tick
+    ) -> SimResult<ComplaintAggregate> {
+        let complaints_opened: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND tick_opened = ?2",
+            params![run_id, tick as i64], |row| row.get(0),
+        ).unwrap_or(0);
+
+        let complaints_closed: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND tick_closed = ?2",
+            params![run_id, tick as i64], |row| row.get(0),
+        ).unwrap_or(0);
+
+        let sla_breaches: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND sla_breached = 1 AND sla_due_tick = ?2",
+            params![run_id, tick as i64], |row| row.get(0),
+        ).unwrap_or(0);
+
+        let backlog_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND status = 'open'",
+            params![run_id], |row| row.get(0),
+        ).unwrap_or(0);
+
+        let avg_age_days: f64 = self.conn.query_row(
+            "SELECT COALESCE(AVG(?2 - tick_opened), 0.0) FROM complaint WHERE run_id = ?1 AND status = 'open'",
+            params![run_id, tick as i64], |row| row.get(0),
+        ).unwrap_or(0.0);
+
+        Ok(ComplaintAggregate { complaints_opened, complaints_closed, sla_breaches, avg_age_days, backlog_count })
+    }
+
+    pub fn save_complaint_aggregate(
+        &self, run_id: &str, tick: Tick, agg: &ComplaintAggregate
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO complaint_aggregate
+             (run_id, tick, complaints_opened, complaints_closed, sla_breaches, avg_age_days, backlog_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                run_id, tick as i64,
+                agg.complaints_opened, agg.complaints_closed, agg.sla_breaches,
+                agg.avg_age_days, agg.backlog_count,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // ── Test / summary helpers ─────────────────────────────────────
+
+    pub fn complaint_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1",
+            params![run_id], |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn sla_breach_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND sla_breached = 1",
+            params![run_id], |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn first_open_complaint(
+        &self, run_id: &str
+    ) -> SimResult<Option<crate::complaint_subsystem::ComplaintRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT complaint_id, customer_id, account_id, tick_opened, tick_closed,
+                    product, issue, priority, status, sla_due_tick, sla_breached,
+                    resolution_code, amount_refunded, udaap_flag
+             FROM complaint WHERE run_id = ?1 AND status = 'open'
+             ORDER BY tick_opened ASC LIMIT 1"
+        )?;
+        let result = stmt.query_row(params![run_id], complaint_row_mapper).ok();
+        Ok(result)
+    }
+
+    pub fn customer_satisfaction(&self, run_id: &str, customer_id: &str) -> SimResult<f64> {
+        let sat: f64 = self.conn.query_row(
+            "SELECT satisfaction FROM customer WHERE run_id = ?1 AND customer_id = ?2",
+            params![run_id, customer_id], |row| row.get(0),
+        )?;
+        Ok(sat)
+    }
+
+    pub fn complaint_backlog(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint WHERE run_id = ?1 AND status = 'open'",
+            params![run_id], |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn fee_event_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM event_log WHERE run_id = ?1 AND event_type = 'fee_charged'",
+            params![run_id], |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn churned_customer_count(&self, run_id: &str) -> SimResult<i64> {
+        self.customer_count(run_id, "churned")
+    }
+
+    // ── P&L ─────────────────────────────────────────────────────
+
+    pub fn insert_pnl_snapshot(
+        &self,
+        run_id: &str,
+        pnl: &crate::economics_subsystem::PnLSnapshot,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO pnl_snapshot (
+                run_id, tick, period,
+                nii, fee_income, gross_income,
+                credit_loss, fraud_loss, opex, complaint_cost,
+                pre_tax_profit, nim, efficiency_ratio,
+                avg_deposits, avg_loans, customer_count, active_accounts
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+            params![
+                run_id,
+                pnl.tick as i64,
+                pnl.period,
+                pnl.nii,
+                pnl.fee_income,
+                pnl.gross_income,
+                pnl.credit_loss,
+                pnl.fraud_loss,
+                pnl.opex,
+                pnl.complaint_cost,
+                pnl.pre_tax_profit,
+                pnl.nim,
+                pnl.efficiency_ratio,
+                pnl.avg_deposits,
+                pnl.avg_loans,
+                pnl.customer_count,
+                pnl.active_accounts,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn latest_pnl_snapshots(
+        &self,
+        run_id: &str,
+        count: usize,
+    ) -> SimResult<Vec<crate::economics_subsystem::PnLSnapshot>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT tick, period, nii, fee_income, gross_income,
+                    credit_loss, fraud_loss, opex, complaint_cost,
+                    pre_tax_profit, nim, efficiency_ratio,
+                    avg_deposits, avg_loans, customer_count, active_accounts
+             FROM pnl_snapshot
+             WHERE run_id = ?1
+             ORDER BY tick ASC
+             LIMIT ?2"
+        )?;
+        let snapshots = stmt.query_map(params![run_id, count as i64], |row| {
+            Ok(crate::economics_subsystem::PnLSnapshot {
+                tick:             row.get::<_, i64>(0)? as u64,
+                period:           row.get(1)?,
+                nii:              row.get(2)?,
+                fee_income:       row.get(3)?,
+                gross_income:     row.get(4)?,
+                credit_loss:      row.get(5)?,
+                fraud_loss:       row.get(6)?,
+                opex:             row.get(7)?,
+                complaint_cost:   row.get(8)?,
+                pre_tax_profit:   row.get(9)?,
+                nim:              row.get(10)?,
+                efficiency_ratio: row.get(11)?,
+                avg_deposits:     row.get(12)?,
+                avg_loans:        row.get(13)?,
+                customer_count:   row.get(14)?,
+                active_accounts:  row.get(15)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>()?;
+        Ok(snapshots)
+    }
+
+    pub fn pnl_count(&self, run_id: &str) -> SimResult<i64> {
+        self.conn.query_row(
+            "SELECT COUNT(*) FROM pnl_snapshot WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        ).map_err(Into::into)
+    }
+
+    pub fn all_pnl_snapshots(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Vec<crate::economics_subsystem::PnLSnapshot>> {
+        self.latest_pnl_snapshots(run_id, 1000)
+    }
+
+    // ── Account balance aggregates ─────────────────────────────
+
+    pub fn avg_account_balances(
+        &self,
+        run_id: &str,
+        _start_tick: Tick,
+        _end_tick: Tick,
+    ) -> SimResult<f64> {
+        let sum: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(balance), 0.0)
+             FROM account
+             WHERE run_id = ?1 AND status = 'open'",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(sum)
+    }
+
+    pub fn active_account_count(&self, run_id: &str) -> SimResult<i64> {
+        self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM account
+             WHERE run_id = ?1 AND status = 'open'",
+            params![run_id],
+            |row| row.get(0),
+        ).map_err(Into::into)
+    }
+
+    // ── Macro state average ────────────────────────────────────
+
+    pub fn avg_macro_base_rate(
+        &self,
+        run_id: &str,
+        _start_tick: Tick,
+        _end_tick: Tick,
+    ) -> SimResult<f64> {
+        let rate: f64 = self.conn.query_row(
+            "SELECT base_rate FROM macro_state WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        ).unwrap_or(0.05);
+        Ok(rate)
+    }
+
+    // ── Fee and complaint aggregates ───────────────────────────
+
+    pub fn sum_fee_income(
+        &self,
+        run_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<f64> {
+        let sum: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(fee_income), 0.0)
+             FROM daily_aggregate
+             WHERE run_id = ?1 AND tick >= ?2 AND tick <= ?3",
+            params![run_id, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+        Ok(sum)
+    }
+
+    pub fn sum_complaints_opened(
+        &self,
+        run_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<i64> {
+        let sum: i64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(complaints_opened), 0)
+             FROM complaint_aggregate
+             WHERE run_id = ?1 AND tick >= ?2 AND tick <= ?3",
+            params![run_id, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+        Ok(sum)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AccountRow {
+    pub account_id:       String,
+    pub customer_id:      String,
+    pub product_id:       String,
+    pub balance:          f64,
+    pub monthly_txn_mean: f64,
+    pub cash_intensity:   f64,
+    pub payroll_amount:   f64,
+    pub has_payroll:      bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DailyAggregate {
+    pub txn_count:        i64,
+    pub txn_volume:       f64,
+    pub fee_income:       f64,
+    pub overdraft_events: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComplaintAggregate {
+    pub complaints_opened: i64,
+    pub complaints_closed: i64,
+    pub sla_breaches:      i64,
+    pub avg_age_days:      f64,
+    pub backlog_count:     i64,
+}
+
+/// Row mapper for the complaint table — shared by several query methods.
+fn complaint_row_mapper(
+    row: &rusqlite::Row<'_>
+) -> rusqlite::Result<crate::complaint_subsystem::ComplaintRecord> {
+    Ok(crate::complaint_subsystem::ComplaintRecord {
+        complaint_id:    row.get(0)?,
+        customer_id:     row.get(1)?,
+        account_id:      row.get(2)?,
+        tick_opened:     row.get::<_, i64>(3)? as u64,
+        tick_closed:     row.get::<_, Option<i64>>(4)?.map(|t| t as u64),
+        product:         row.get(5)?,
+        issue:           row.get(6)?,
+        priority:        row.get(7)?,
+        status:          row.get(8)?,
+        sla_due_tick:    row.get::<_, i64>(9)? as u64,
+        sla_breached:    row.get::<_, i32>(10)? != 0,
+        resolution_code: row.get(11)?,
+        amount_refunded: row.get(12)?,
+        udaap_flag:      row.get::<_, i32>(13)? != 0,
+    })
 }

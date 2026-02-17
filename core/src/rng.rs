@@ -41,6 +41,12 @@ impl SubsystemRng {
         (bits >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
     }
 
+    /// Draw a raw u64 (full range).
+    pub fn next_u64(&mut self) -> u64 {
+        use rand::RngCore;
+        self.inner.next_u64()
+    }
+
     /// Roll a u64 in [0, n).
     pub fn next_u64_below(&mut self, n: u64) -> u64 {
         use rand::RngCore;

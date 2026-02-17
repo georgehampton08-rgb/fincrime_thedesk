@@ -1,5 +1,9 @@
 pub mod clock;
 pub mod command;
+pub mod complaint_subsystem;
+pub mod config;
+pub mod customer_subsystem;
+pub mod economics_subsystem;
 pub mod engine;
 pub mod error;
 pub mod event;
@@ -8,4 +12,5 @@ pub mod rng;
 pub mod snapshot;
 pub mod store;
 pub mod subsystem;
+pub mod transaction_subsystem;
 pub mod types;
