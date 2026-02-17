@@ -1,0 +1,78 @@
+﻿===== STEP 7: BUILD ALL =====
+BUILD_EXIT: 0
+
+
+===== STEP 7: CARGO TEST (expect 4 passing) =====
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test engine_pauses_and_resumes_correctly ... ok
+test macro_updates_on_quarterly_boundaries_only ... ok
+test different_seeds_produce_different_logs ... ok
+test same_seed_produces_identical_event_logs ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+TEST_EXIT: 0
+
+
+===== STEP 7: SIM-RUNNER (365 ticks) =====
+FinCrime: The Desk ΓÇö sim-runner
+  seed:  42
+  ticks: 365
+  db:    :memory:
+
+Run complete.
+  run_id:       run-42-1771351908
+  ticks run:    365
+  final tick:   365
+  economic phase after run:
+    phase=Peak  rate=0.058  fraud_mult=1.10
+RUNNER_EXIT: 0
+
+
+===== CHECK: MacroStateUpdated on quarterly boundaries only =====
+FinCrime: The Desk ΓÇö sim-runner
+  seed:  999
+  ticks: 365
+  db:    test_macro.db
+
+Run complete.
+  run_id:       run-999-1771351942
+  ticks run:    365
+  final tick:   365
+  economic phase after run:
+    phase=Peak  rate=0.058  fraud_mult=1.10
+
+Checking event_log for macro_state_updated events...
+
+90
+180
+270
+360
+(Should be: 90, 180, 270, 360)
+

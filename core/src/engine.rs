@@ -21,6 +21,7 @@ use crate::{
     clock::SimClock,
     error::SimResult,
     event::{EventLogEntry, SimEvent},
+    macro_subsystem::MacroSubsystem,
     rng::{RngBank, SubsystemSlot},
     snapshot::{SimSnapshot, SNAPSHOT_INTERVAL},
     store::SimStore,
@@ -47,6 +48,25 @@ impl SimEngine {
             store,
             run_id,
         }
+    }
+
+    /// Build a fully wired engine with all subsystems registered.
+    /// Call this instead of new() + manual register() calls.
+    pub fn build(run_id: RunId, seed: u64, store: SimStore) -> Self {
+        let mut engine = SimEngine::new(run_id, seed, store);
+        
+        // EXECUTION ORDER — fixed, documented, never reordered.
+        // Phase 0: engine internals (no subsystem)
+        // Phase 1A:
+        engine.register(
+            SubsystemSlot::Macro,
+            Box::new(MacroSubsystem::new()),
+        );
+        // Phase 1B: Customer, Account, Transaction (stubs for now)
+        // Phase 1C: Complaint (stub)
+        // Phase 1D: Economics (stub)
+        // Phase 3:  Fraud, Regulatory (stubs)
+        engine
     }
 
     /// Register a subsystem. Call in the documented execution order.
@@ -129,6 +149,17 @@ impl SimEngine {
         tick: Tick,
     ) -> SimResult<Vec<EventLogEntry>> {
         self.store.events_for_tick(run_id, tick)
+    }
+
+    /// Query the MacroSubsystem's current state.
+    /// Used by sim-runner to print end-of-run summaries.
+    pub fn last_macro_state(&self) -> Option<&crate::macro_subsystem::MacroState> {
+        use std::any::Any;
+        self.subsystems.iter().find_map(|(_, sub)| {
+            sub.as_any()
+                .downcast_ref::<crate::macro_subsystem::MacroSubsystem>()
+                .map(|m| &m.state)
+        })
     }
 
     fn take_snapshot(&self, tick: Tick) -> SimResult<()> {

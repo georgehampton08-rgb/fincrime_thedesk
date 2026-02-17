@@ -1,7 +1,9 @@
 pub mod clock;
+pub mod command;
 pub mod engine;
 pub mod error;
 pub mod event;
+pub mod macro_subsystem;
 pub mod rng;
 pub mod snapshot;
 pub mod store;

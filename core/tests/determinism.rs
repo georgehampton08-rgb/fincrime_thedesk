@@ -14,7 +14,7 @@ fn build_engine(seed: u64) -> SimEngine {
     store.migrate().expect("migration");
     let run_id = format!("det-test-{seed}");
     store.insert_run(&run_id, seed, "0.1.0-test").expect("insert run");
-    SimEngine::new(run_id, seed, store)
+    SimEngine::build(run_id, seed, store)
 }
 
 fn collect_event_log(engine: &SimEngine, run_id: &str) -> Vec<String> {
@@ -74,4 +74,55 @@ fn different_seeds_produce_different_logs() {
 
     let any_different = log_a.iter().zip(log_b.iter()).any(|(a, b)| a != b);
     assert!(any_different, "Different seeds produced identical logs — seed is not being used");
+}
+
+#[test]
+fn macro_updates_on_quarterly_boundaries_only() {
+    use fincrime_core::engine::SimEngine;
+    use fincrime_core::store::SimStore;
+
+    let store = SimStore::in_memory().unwrap();
+    store.migrate().unwrap();
+    let run_id = "macro-boundary-test".to_string();
+    store.insert_run(&run_id, 1, "test").unwrap();
+
+    let mut engine = SimEngine::build(run_id.clone(), 1, store);
+    engine.run_ticks(91).unwrap(); // just past first quarter
+
+    // Collect all events
+    let macro_events: Vec<_> = (0u64..=91)
+        .flat_map(|tick| {
+            engine.store_events_for_tick(&run_id, tick).unwrap()
+        })
+        .filter(|e| e.event_type == "macro_state_updated")
+        .collect();
+
+    // Should have exactly 1 macro event (at tick 90)
+    assert_eq!(
+        macro_events.len(), 1,
+        "Expected 1 macro update in 91 ticks, got {}",
+        macro_events.len()
+    );
+    assert_eq!(macro_events[0].tick, 90,
+        "Macro update should fire at tick 90");
+}
+
+#[test]
+fn engine_pauses_and_resumes_correctly() {
+    use fincrime_core::engine::SimEngine;
+    use fincrime_core::store::SimStore;
+
+    let store = SimStore::in_memory().unwrap();
+    store.migrate().unwrap();
+    store.insert_run("pause-test", 7, "test").unwrap();
+    let mut engine = SimEngine::build("pause-test".to_string(), 7, store);
+
+    // Should start paused
+    assert!(engine.clock.paused);
+
+    engine.run_ticks(10).unwrap();
+    assert_eq!(engine.clock.current_tick, 10);
+
+    // Should be paused again after run_ticks completes
+    assert!(engine.clock.paused);
 }

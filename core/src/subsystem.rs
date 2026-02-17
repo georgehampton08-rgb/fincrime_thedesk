@@ -11,6 +11,7 @@ use crate::{
     rng::SubsystemRng,
     types::Tick,
 };
+use std::any::Any;
 
 /// The contract every subsystem must fulfill.
 pub trait SimSubsystem: Send {
@@ -30,4 +31,8 @@ pub trait SimSubsystem: Send {
         events_in: &[SimEvent],
         rng: &mut SubsystemRng,
     ) -> SimResult<Vec<SimEvent>>;
+
+    /// For downcasting in tests and tooling only.
+    /// Production sim code never uses this.
+    fn as_any(&self) -> &dyn Any;
 }

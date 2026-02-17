@@ -1,6 +1,15 @@
 [package]
-name    = "fincrime-tools"
+name    = "sim-runner"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "sim-runner"
+path = "src/main.rs"
+
 [dependencies]
+fincrime-core = { path = "../core" }
+anyhow        = { workspace = true }
+env_logger    = { workspace = true }
+log           = { workspace = true }
+chrono        = { workspace = true }

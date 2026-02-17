@@ -34,6 +34,7 @@ impl SimStore {
     /// Apply all schema migrations in order.
     pub fn migrate(&self) -> SimResult<()> {
         self.conn.execute_batch(include_str!("../../migrations/001_foundation.sql"))?;
+        self.conn.execute_batch(include_str!("../../migrations/002_macro.sql"))?;
         Ok(())
     }
 
