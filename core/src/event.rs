@@ -101,6 +101,28 @@ pub enum SimEvent {
         fee_type:   String,
         reason:     String,
     },
+
+    // ── Phase 2.2: Offer events ─────────────────────────────────
+    OfferMatched {
+        tick:         Tick,
+        customer_id:  EntityId,
+        offer_id:     String,
+        bonus_amount: f64,
+    },
+
+    OfferCompleted {
+        tick:        Tick,
+        customer_id: EntityId,
+        offer_id:    String,
+    },
+
+    OfferBonusPaid {
+        tick:              Tick,
+        customer_id:       EntityId,
+        offer_id:          String,
+        amount:            f64,
+        bonus_seeker_flag: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

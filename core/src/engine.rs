@@ -72,6 +72,7 @@ impl SimEngine {
         let store_complaint  = store.reopen()?;
         let store_economics  = store.reopen()?;
         let store_pricing    = store.reopen()?;
+        let store_offer      = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -90,6 +91,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.clone(),
                 store_customer,
+            )),
+        );
+        // Phase 2.2: Offer (after Customer so it sees CustomerOnboarded events)
+        engine.register(
+            SubsystemSlot::Offer,
+            Box::new(crate::offer_subsystem::OfferSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_offer,
             )),
         );
         engine.register(
@@ -144,6 +154,7 @@ impl SimEngine {
         let store_complaint = store.reopen()?;
         let store_economics = store.reopen()?;
         let store_pricing   = store.reopen()?;
+        let store_offer     = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -158,6 +169,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.clone(),
                 store_customer,
+            )),
+        );
+        // Phase 2.2: Offer (after Customer)
+        engine.register(
+            SubsystemSlot::Offer,
+            Box::new(crate::offer_subsystem::OfferSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_offer,
             )),
         );
         engine.register(
@@ -424,6 +444,28 @@ impl SimEngine {
     ) -> SimResult<Vec<crate::store::FeeChangeRecord>> {
         self.store.fee_change_history(run_id, product_id, limit)
     }
+
+    // ── Offer wrapper methods (for tests and sim-runner) ────────────────────
+
+    pub fn store_matched_offer_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.matched_offer_count(run_id)
+    }
+
+    pub fn store_completed_offer_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.completed_offer_count(run_id)
+    }
+
+    pub fn store_total_bonuses_paid(&self, run_id: &str) -> SimResult<f64> {
+        self.store.total_bonuses_paid(run_id)
+    }
+
+    pub fn store_bonus_seeker_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.bonus_seeker_count(run_id)
+    }
+
+    pub fn store_all_account_balances(&self, run_id: &str) -> SimResult<Vec<f64>> {
+        self.store.all_account_balances(run_id)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -444,5 +486,8 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::QuarterlyPnLComputed { .. }  => "quarterly_pnl_computed",
         SimEvent::ProductFeeChanged { .. }     => "product_fee_changed",
         SimEvent::FeeChangeRejected { .. }     => "fee_change_rejected",
+        SimEvent::OfferMatched { .. }          => "offer_matched",
+        SimEvent::OfferCompleted { .. }        => "offer_completed",
+        SimEvent::OfferBonusPaid { .. }        => "offer_bonus_paid",
     }
 }

@@ -110,7 +110,12 @@ impl EconomicsSubsystem {
         )?;
         let complaint_cost = complaint_count as f64 * 50.0;
 
-        let opex = quarterly_staff_cost + complaint_cost;
+        // Offer acquisition / retention cost: bonuses paid this quarter
+        let offer_bonus_cost = self.store.sum_offer_bonuses_paid(
+            &self.run_id, quarter_start, quarter_end
+        )?;
+
+        let opex = quarterly_staff_cost + complaint_cost + offer_bonus_cost;
 
         // ── Bottom Line ────────────────────────────────────────
 

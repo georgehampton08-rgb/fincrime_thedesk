@@ -80,6 +80,64 @@ struct ComplaintConfigFile {
     resolution_codes: Vec<ResolutionCode>,
 }
 
+// ── Phase 2.2: Offer catalog ───────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferConfig {
+    pub offer_id:     String,
+    pub offer_type:   String,
+    pub label:        String,
+    pub product_id:   Option<String>,
+    pub bonus_amount: f64,
+    pub requirements: OfferRequirements,
+    pub eligibility:  OfferEligibility,
+    pub cost_model:   OfferCostModel,
+    pub fraud_risk:   OfferFraudRisk,
+    pub active:       bool,
+    pub start_tick:   u64,
+    pub end_tick:     Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferRequirements {
+    pub min_direct_deposit: f64,
+    pub min_balance:        f64,
+    pub duration_ticks:     u64,
+    pub new_to_bank_only:   bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferEligibility {
+    pub target_segments:      Vec<String>,
+    pub exclude_segments:     Vec<String>,
+    pub min_credit_score:     Option<f64>,
+    pub max_existing_products: Option<usize>,
+    #[serde(default)]
+    pub min_churn_risk:       Option<f64>,
+    #[serde(default)]
+    pub max_churn_risk:       Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferCostModel {
+    pub bonus_paid_on_completion: bool,
+    pub promo_rate_duration:      u64,
+    pub promo_rate_delta:         f64,
+    #[serde(default)]
+    pub fee_waiver_duration:      Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferFraudRisk {
+    pub bonus_seeker_probability: f64,
+    pub velocity_flag_threshold:  usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OfferCatalogFile {
+    offers: Vec<OfferConfig>,
+}
+
 // ── Phase 2.1: Fee constraints ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +171,7 @@ pub struct SimConfig {
     pub products:            HashMap<String, ProductConfig>,
     pub fee_constraints:     HashMap<String, FeeConstraint>,
     pub impact_formulas:     HashMap<String, FeeImpactFormula>,
+    pub offers:              HashMap<String, OfferConfig>,
 }
 
 impl SimConfig {
@@ -151,6 +210,14 @@ impl SimConfig {
             .map(|f| (f.fee_type.clone(), f))
             .collect();
 
+        let offer_path = format!("{data_dir}/offers/offer_catalog.json");
+        let offer_content = std::fs::read_to_string(&offer_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {offer_path}: {e}"))?;
+        let offer_file: OfferCatalogFile = serde_json::from_str(&offer_content)?;
+        let offers = offer_file.offers.into_iter()
+            .map(|o| (o.offer_id.clone(), o))
+            .collect();
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -159,6 +226,7 @@ impl SimConfig {
             products,
             fee_constraints,
             impact_formulas: fee_file.impact_formulas,
+            offers,
         })
     }
 
@@ -318,6 +386,44 @@ impl SimConfig {
             ),
         ].into();
 
+        let offers = [(
+            "signup_bonus_100".into(),
+            OfferConfig {
+                offer_id:     "signup_bonus_100".into(),
+                offer_type:   "signup_cash_bonus".into(),
+                label:        "$100 Sign-Up Bonus".into(),
+                product_id:   Some("basic_checking".into()),
+                bonus_amount: 100.0,
+                requirements: OfferRequirements {
+                    min_direct_deposit: 500.0,
+                    min_balance:        100.0,
+                    duration_ticks:     60,
+                    new_to_bank_only:   true,
+                },
+                eligibility: OfferEligibility {
+                    target_segments:      vec!["mass_market".into()],
+                    exclude_segments:     vec![],
+                    min_credit_score:     None,
+                    max_existing_products: None, // allow customers with their first account
+                    min_churn_risk:       None,
+                    max_churn_risk:       None,
+                },
+                cost_model: OfferCostModel {
+                    bonus_paid_on_completion: true,
+                    promo_rate_duration:      0,
+                    promo_rate_delta:         0.0,
+                    fee_waiver_duration:      None,
+                },
+                fraud_risk: OfferFraudRisk {
+                    bonus_seeker_probability: 0.15,
+                    velocity_flag_threshold:  3,
+                },
+                active:     true,
+                start_tick: 0,
+                end_tick:   None,
+            },
+        )].into();
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
@@ -326,6 +432,7 @@ impl SimConfig {
             products,
             fee_constraints,
             impact_formulas,
+            offers,
         }
     }
 }

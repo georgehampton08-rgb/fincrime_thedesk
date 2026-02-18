@@ -98,6 +98,7 @@ pub enum SubsystemSlot {
     Fraud       = 6,
     Regulatory  = 7,
     Pricing     = 8,
+    Offer       = 9,
     // Add new subsystems here — append only.
 }
 
@@ -113,6 +114,7 @@ impl SubsystemSlot {
             Self::Fraud       => "fraud",
             Self::Regulatory  => "regulatory",
             Self::Pricing     => "pricing",
+            Self::Offer       => "offer",
         }
     }
 }

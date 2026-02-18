@@ -8,6 +8,7 @@ pub mod engine;
 pub mod error;
 pub mod event;
 pub mod macro_subsystem;
+pub mod offer_subsystem;
 pub mod pricing_subsystem;
 pub mod rng;
 pub mod snapshot;

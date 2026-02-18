@@ -1,0 +1,174 @@
+{
+  "offers": [
+    {
+      "offer_id": "signup_bonus_100",
+      "offer_type": "signup_cash_bonus",
+      "label": "$100 Sign-Up Bonus",
+      "product_id": "standard_checking",
+      "bonus_amount": 100.0,
+      "requirements": {
+        "min_direct_deposit": 500.0,
+        "min_balance": 100.0,
+        "duration_ticks": 60,
+        "new_to_bank_only": true
+      },
+      "eligibility": {
+        "target_segments": ["mass_market", "mid_tier"],
+        "exclude_segments": [],
+        "min_credit_score": null,
+        "max_existing_products": 0,
+        "min_churn_risk": null,
+        "max_churn_risk": null
+      },
+      "cost_model": {
+        "bonus_paid_on_completion": true,
+        "promo_rate_duration": 0,
+        "promo_rate_delta": 0.0,
+        "fee_waiver_duration": null
+      },
+      "fraud_risk": {
+        "bonus_seeker_probability": 0.15,
+        "velocity_flag_threshold": 3
+      },
+      "active": true,
+      "start_tick": 0,
+      "end_tick": null
+    },
+    {
+      "offer_id": "signup_bonus_400",
+      "offer_type": "signup_cash_bonus",
+      "label": "$400 Sign-Up Bonus (Premium)",
+      "product_id": "premium_checking",
+      "bonus_amount": 400.0,
+      "requirements": {
+        "min_direct_deposit": 2000.0,
+        "min_balance": 5000.0,
+        "duration_ticks": 90,
+        "new_to_bank_only": true
+      },
+      "eligibility": {
+        "target_segments": ["mid_tier"],
+        "exclude_segments": ["student"],
+        "min_credit_score": null,
+        "max_existing_products": 0,
+        "min_churn_risk": null,
+        "max_churn_risk": null
+      },
+      "cost_model": {
+        "bonus_paid_on_completion": true,
+        "promo_rate_duration": 0,
+        "promo_rate_delta": 0.0,
+        "fee_waiver_duration": null
+      },
+      "fraud_risk": {
+        "bonus_seeker_probability": 0.35,
+        "velocity_flag_threshold": 2
+      },
+      "active": false,
+      "start_tick": 0,
+      "end_tick": null
+    },
+    {
+      "offer_id": "promo_savings_rate",
+      "offer_type": "promotional_rate",
+      "label": "5% APY Savings (6 months)",
+      "product_id": "standard_savings",
+      "bonus_amount": 0.0,
+      "requirements": {
+        "min_direct_deposit": 0.0,
+        "min_balance": 1000.0,
+        "duration_ticks": 180,
+        "new_to_bank_only": false
+      },
+      "eligibility": {
+        "target_segments": ["mass_market", "mid_tier", "student"],
+        "exclude_segments": [],
+        "min_credit_score": null,
+        "max_existing_products": null,
+        "min_churn_risk": null,
+        "max_churn_risk": null
+      },
+      "cost_model": {
+        "bonus_paid_on_completion": false,
+        "promo_rate_duration": 180,
+        "promo_rate_delta": 0.045,
+        "fee_waiver_duration": null
+      },
+      "fraud_risk": {
+        "bonus_seeker_probability": 0.05,
+        "velocity_flag_threshold": 5
+      },
+      "active": true,
+      "start_tick": 0,
+      "end_tick": null
+    },
+    {
+      "offer_id": "retention_fee_waiver",
+      "offer_type": "retention_offer",
+      "label": "3 Months Free (Retention)",
+      "product_id": null,
+      "bonus_amount": 0.0,
+      "requirements": {
+        "min_direct_deposit": 0.0,
+        "min_balance": 0.0,
+        "duration_ticks": 90,
+        "new_to_bank_only": false
+      },
+      "eligibility": {
+        "target_segments": [],
+        "exclude_segments": [],
+        "min_credit_score": null,
+        "max_existing_products": null,
+        "min_churn_risk": 0.70,
+        "max_churn_risk": 0.90
+      },
+      "cost_model": {
+        "bonus_paid_on_completion": false,
+        "promo_rate_duration": 90,
+        "promo_rate_delta": 0.0,
+        "fee_waiver_duration": 90
+      },
+      "fraud_risk": {
+        "bonus_seeker_probability": 0.02,
+        "velocity_flag_threshold": 10
+      },
+      "active": true,
+      "start_tick": 0,
+      "end_tick": null
+    },
+    {
+      "offer_id": "student_fee_free",
+      "offer_type": "segment_promotion",
+      "label": "Student Fee-Free Checking",
+      "product_id": "student_checking",
+      "bonus_amount": 0.0,
+      "requirements": {
+        "min_direct_deposit": 0.0,
+        "min_balance": 0.0,
+        "duration_ticks": 365,
+        "new_to_bank_only": false
+      },
+      "eligibility": {
+        "target_segments": ["student"],
+        "exclude_segments": [],
+        "min_credit_score": null,
+        "max_existing_products": null,
+        "min_churn_risk": null,
+        "max_churn_risk": null
+      },
+      "cost_model": {
+        "bonus_paid_on_completion": false,
+        "promo_rate_duration": 0,
+        "promo_rate_delta": 0.0,
+        "fee_waiver_duration": 365
+      },
+      "fraud_risk": {
+        "bonus_seeker_probability": 0.08,
+        "velocity_flag_threshold": 8
+      },
+      "active": true,
+      "start_tick": 0,
+      "end_tick": null
+    }
+  ]
+}
