@@ -175,8 +175,8 @@ impl SimSubsystem for CustomerSubsystem {
             }
         }
 
-        // Apply satisfaction decay and churn evaluation
-        // every 30 ticks (monthly) to manage performance.
+        // Apply satisfaction decay every 30 ticks (monthly).
+        // ChurnSubsystem (Phase 2.3) now owns churn evaluation and decision.
         if tick.is_multiple_of(30) {
             let active = self.store.active_customers(&self.run_id)?;
             for mut c in active {
@@ -185,30 +185,11 @@ impl SimSubsystem for CustomerSubsystem {
                     c.satisfaction =
                         (c.satisfaction - SATISFACTION_DECAY_PER_TICK * 30.0)
                         .max(0.0);
-                }
-
-                let seg = self.config.segments.get(&c.segment);
-                let base = seg.map(|s| s.base_churn_rate_per_tick * 30.0)
-                    .unwrap_or(0.015);
-                let fee_sens = seg.map(|s| s.fee_sensitivity).unwrap_or(0.7);
-
-                // Churn risk = base + satisfaction penalty
-                let sat_delta = ((0.65 - c.satisfaction) * fee_sens * 0.3)
-                    .max(0.0);
-                c.churn_risk = (base + sat_delta).min(1.0);
-
-                if c.churn_risk > CHURN_THRESHOLD && rng.chance(c.churn_risk) {
-                    self.store.churn_customer(&self.run_id, &c.customer_id, tick)?;
-                    out_events.push(SimEvent::CustomerChurned {
-                        tick,
-                        customer_id: c.customer_id.clone(),
-                        segment:     c.segment.clone(),
-                        churn_risk:  c.churn_risk,
-                    });
-                } else {
                     self.store.update_customer_churn_satisfaction(
-                        &self.run_id, &c.customer_id,
-                        c.churn_risk, c.satisfaction,
+                        &self.run_id,
+                        &c.customer_id,
+                        c.churn_risk, // leave churn_risk unchanged; ChurnSubsystem will update
+                        c.satisfaction,
                     )?;
                 }
             }

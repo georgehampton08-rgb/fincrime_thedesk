@@ -99,6 +99,7 @@ pub enum SubsystemSlot {
     Regulatory  = 7,
     Pricing     = 8,
     Offer       = 9,
+    Churn       = 10,
     // Add new subsystems here — append only.
 }
 
@@ -115,6 +116,7 @@ impl SubsystemSlot {
             Self::Regulatory  => "regulatory",
             Self::Pricing     => "pricing",
             Self::Offer       => "offer",
+            Self::Churn       => "churn",
         }
     }
 }

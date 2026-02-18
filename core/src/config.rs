@@ -1,3 +1,4 @@
+use crate::types::Tick;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -138,6 +139,64 @@ struct OfferCatalogFile {
     offers: Vec<OfferConfig>,
 }
 
+// ── Phase 2.3: Churn model ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChurnModelConfig {
+    pub model_version:           String,
+    pub update_frequency_ticks:  Tick,
+    pub segment_base_rates:      HashMap<String, SegmentChurnParams>,
+    pub churn_formula:           ChurnFormulaWeights,
+    pub life_events:             Vec<LifeEventConfig>,
+    pub churn_thresholds:        ChurnThresholds,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SegmentChurnParams {
+    pub monthly_churn_rate:            f64,
+    pub annual_churn_rate:             f64,
+    pub fee_sensitivity:               f64,
+    pub service_sensitivity:           f64,
+    pub offer_retention_effectiveness: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChurnFormulaWeights {
+    pub base_rate_weight:           f64,
+    pub satisfaction_weight:        f64,
+    pub satisfaction_equilibrium:   f64,
+    pub fee_burden_weight:          f64,
+    pub fee_burden_threshold:       f64,
+    pub complaint_weight:           f64,
+    pub complaint_lookback_ticks:   Tick,
+    pub sla_breach_weight:          f64,
+    pub sla_breach_lookback_ticks:  Tick,
+    pub inactivity_weight:          f64,
+    pub inactivity_threshold_ticks: Tick,
+    pub product_depth_bonus:        f64,
+    pub retention_offer_bonus:      f64,
+    pub life_event_multiplier:      f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeEventConfig {
+    pub event_type:           String,
+    pub probability_per_year: f64,
+    #[serde(default)]
+    pub segments:             Vec<String>,
+    pub churn_risk_delta:     f64,
+    pub duration_ticks:       Tick,
+    pub behavioral_changes:   serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChurnThresholds {
+    pub low_risk:       f64,
+    pub medium_risk:    f64,
+    pub high_risk:      f64,
+    pub imminent_churn: f64,
+}
+
 // ── Phase 2.1: Fee constraints ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +231,7 @@ pub struct SimConfig {
     pub fee_constraints:     HashMap<String, FeeConstraint>,
     pub impact_formulas:     HashMap<String, FeeImpactFormula>,
     pub offers:              HashMap<String, OfferConfig>,
+    pub churn_model:         ChurnModelConfig,
 }
 
 impl SimConfig {
@@ -218,6 +278,11 @@ impl SimConfig {
             .map(|o| (o.offer_id.clone(), o))
             .collect();
 
+        let churn_path = format!("{data_dir}/churn/churn_model_config.json");
+        let churn_content = std::fs::read_to_string(&churn_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {churn_path}: {e}"))?;
+        let churn_model: ChurnModelConfig = serde_json::from_str(&churn_content)?;
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -227,6 +292,7 @@ impl SimConfig {
             fee_constraints,
             impact_formulas: fee_file.impact_formulas,
             offers,
+            churn_model,
         })
     }
 
@@ -424,6 +490,53 @@ impl SimConfig {
             },
         )].into();
 
+        let churn_model = ChurnModelConfig {
+            model_version: "2.3.0-test".into(),
+            update_frequency_ticks: 30,
+            segment_base_rates: [(
+                "mass_market".into(),
+                SegmentChurnParams {
+                    monthly_churn_rate:            0.025,
+                    annual_churn_rate:             0.26,
+                    fee_sensitivity:               0.80,
+                    service_sensitivity:           0.70,
+                    offer_retention_effectiveness: 0.65,
+                },
+            )].into(),
+            churn_formula: ChurnFormulaWeights {
+                base_rate_weight:           1.0,
+                satisfaction_weight:        0.40,
+                satisfaction_equilibrium:   0.65,
+                fee_burden_weight:          0.25,
+                fee_burden_threshold:       50.0,
+                complaint_weight:           0.20,
+                complaint_lookback_ticks:   90,
+                sla_breach_weight:          0.35,
+                sla_breach_lookback_ticks:  90,
+                inactivity_weight:          0.15,
+                inactivity_threshold_ticks: 60,
+                product_depth_bonus:        -0.08,
+                retention_offer_bonus:      -0.15,
+                life_event_multiplier:      1.25,
+            },
+            life_events: vec![
+                LifeEventConfig {
+                    event_type:           "job_change".into(),
+                    probability_per_year: 0.15,
+                    segments:             vec![],
+                    churn_risk_delta:     0.12,
+                    duration_ticks:       90,
+                    behavioral_changes:   serde_json::json!({}),
+                },
+            ],
+            churn_thresholds: ChurnThresholds {
+                low_risk:       0.30,
+                medium_risk:    0.60,
+                high_risk:      0.85,
+                imminent_churn: 0.95,
+            },
+        };
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
@@ -433,6 +546,7 @@ impl SimConfig {
             fee_constraints,
             impact_formulas,
             offers,
+            churn_model,
         }
     }
 }

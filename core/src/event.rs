@@ -123,6 +123,14 @@ pub enum SimEvent {
         amount:            f64,
         bonus_seeker_flag: bool,
     },
+
+    // ── Phase 2.3: Churn events ─────────────────────────────────
+    LifeEventOccurred {
+        tick:        Tick,
+        customer_id: EntityId,
+        event_type:  String,
+        duration:    Tick,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

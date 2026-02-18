@@ -1,0 +1,141 @@
+{
+  "model_version": "2.3.0",
+  "update_frequency_ticks": 30,
+
+  "segment_base_rates": {
+    "mass_market": {
+      "monthly_churn_rate": 0.025,
+      "annual_churn_rate": 0.26,
+      "fee_sensitivity": 0.80,
+      "service_sensitivity": 0.70,
+      "offer_retention_effectiveness": 0.65
+    },
+    "mid_tier": {
+      "monthly_churn_rate": 0.012,
+      "annual_churn_rate": 0.14,
+      "fee_sensitivity": 0.50,
+      "service_sensitivity": 0.85,
+      "offer_retention_effectiveness": 0.55
+    },
+    "student": {
+      "monthly_churn_rate": 0.010,
+      "annual_churn_rate": 0.12,
+      "fee_sensitivity": 0.95,
+      "service_sensitivity": 0.40,
+      "offer_retention_effectiveness": 0.30
+    },
+    "small_business": {
+      "monthly_churn_rate": 0.015,
+      "annual_churn_rate": 0.17,
+      "fee_sensitivity": 0.60,
+      "service_sensitivity": 0.90,
+      "offer_retention_effectiveness": 0.70
+    }
+  },
+
+  "churn_formula": {
+    "base_rate_weight": 1.0,
+    "satisfaction_weight": 0.40,
+    "satisfaction_equilibrium": 0.65,
+    "fee_burden_weight": 0.25,
+    "fee_burden_threshold": 50.0,
+    "complaint_weight": 0.20,
+    "complaint_lookback_ticks": 90,
+    "sla_breach_weight": 0.35,
+    "sla_breach_lookback_ticks": 90,
+    "inactivity_weight": 0.15,
+    "inactivity_threshold_ticks": 60,
+    "product_depth_bonus": -0.08,
+    "retention_offer_bonus": -0.15,
+    "life_event_multiplier": 1.25
+  },
+
+  "life_events": [
+    {
+      "event_type": "job_change",
+      "probability_per_year": 0.15,
+      "churn_risk_delta": 0.12,
+      "duration_ticks": 90,
+      "behavioral_changes": {
+        "income_shift_range": [-0.30, 0.50],
+        "spending_pattern_shift": 0.25,
+        "new_direct_deposit_probability": 0.80
+      }
+    },
+    {
+      "event_type": "relocation",
+      "probability_per_year": 0.08,
+      "churn_risk_delta": 0.25,
+      "duration_ticks": 60,
+      "behavioral_changes": {
+        "new_geography_flag": true,
+        "atm_pattern_shift": 0.60,
+        "merchant_pattern_reset": true
+      }
+    },
+    {
+      "event_type": "business_expansion",
+      "probability_per_year": 0.12,
+      "segments": ["small_business"],
+      "churn_risk_delta": -0.05,
+      "duration_ticks": 180,
+      "behavioral_changes": {
+        "transaction_velocity_multiplier": 1.40,
+        "wire_frequency_increase": 0.30,
+        "cash_deposit_increase": 0.50
+      }
+    },
+    {
+      "event_type": "retirement",
+      "probability_per_year": 0.02,
+      "segments": ["mid_tier"],
+      "churn_risk_delta": 0.08,
+      "duration_ticks": 365,
+      "behavioral_changes": {
+        "income_shift_range": [-0.60, -0.30],
+        "spending_pattern_shift": -0.40,
+        "direct_deposit_ends": true
+      }
+    },
+    {
+      "event_type": "divorce",
+      "probability_per_year": 0.025,
+      "churn_risk_delta": 0.35,
+      "duration_ticks": 180,
+      "behavioral_changes": {
+        "large_transfer_flag": true,
+        "account_restructure_flag": true,
+        "complaint_probability_multiplier": 2.5
+      }
+    },
+    {
+      "event_type": "inheritance",
+      "probability_per_year": 0.015,
+      "churn_risk_delta": -0.10,
+      "duration_ticks": 30,
+      "behavioral_changes": {
+        "large_deposit_amount_range": [10000, 150000],
+        "balance_step_change": true
+      }
+    },
+    {
+      "event_type": "gambling_onset",
+      "probability_per_year": 0.03,
+      "segments": ["mass_market", "mid_tier"],
+      "churn_risk_delta": 0.05,
+      "duration_ticks": 365,
+      "behavioral_changes": {
+        "cash_withdrawal_multiplier": 2.0,
+        "irregular_timing_flag": true,
+        "velocity_spike": true
+      }
+    }
+  ],
+
+  "churn_thresholds": {
+    "low_risk": 0.30,
+    "medium_risk": 0.60,
+    "high_risk": 0.85,
+    "imminent_churn": 0.95
+  }
+}

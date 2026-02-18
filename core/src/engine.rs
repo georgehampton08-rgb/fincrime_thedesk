@@ -73,6 +73,7 @@ impl SimEngine {
         let store_economics  = store.reopen()?;
         let store_pricing    = store.reopen()?;
         let store_offer      = store.reopen()?;
+        let store_churn      = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -100,6 +101,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.clone(),
                 store_offer,
+            )),
+        );
+        // Phase 2.3: Churn (after Complaint so it sees fresh SLA / satisfaction)
+        engine.register(
+            SubsystemSlot::Churn,
+            Box::new(crate::churn_subsystem::ChurnSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_churn,
             )),
         );
         engine.register(
@@ -155,6 +165,7 @@ impl SimEngine {
         let store_economics = store.reopen()?;
         let store_pricing   = store.reopen()?;
         let store_offer     = store.reopen()?;
+        let store_churn     = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -178,6 +189,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.clone(),
                 store_offer,
+            )),
+        );
+        // Phase 2.3: Churn (after Offer, before Transaction to see all signals)
+        engine.register(
+            SubsystemSlot::Churn,
+            Box::new(crate::churn_subsystem::ChurnSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_churn,
             )),
         );
         engine.register(
@@ -466,6 +486,31 @@ impl SimEngine {
     pub fn store_all_account_balances(&self, run_id: &str) -> SimResult<Vec<f64>> {
         self.store.all_account_balances(run_id)
     }
+
+    // ── Churn wrapper methods (for tests and sim-runner) ────────────────────
+
+    pub fn store_churn_score_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.churn_score_count(run_id)
+    }
+
+    pub fn store_all_churn_scores(
+        &self,
+        run_id: &str,
+        tick: Tick,
+    ) -> SimResult<Vec<crate::churn_subsystem::ChurnScore>> {
+        self.store.churn_scores_at_tick(run_id, tick)
+    }
+
+    pub fn store_life_event_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.life_event_count(run_id)
+    }
+
+    pub fn store_churn_cohorts(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Vec<crate::store::ChurnCohortRecord>> {
+        self.store.all_churn_cohorts(run_id)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -489,5 +534,6 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::OfferMatched { .. }          => "offer_matched",
         SimEvent::OfferCompleted { .. }        => "offer_completed",
         SimEvent::OfferBonusPaid { .. }        => "offer_bonus_paid",
+        SimEvent::LifeEventOccurred { .. }     => "life_event_occurred",
     }
 }
