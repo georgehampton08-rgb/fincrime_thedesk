@@ -13,6 +13,16 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 
+# Temp output files
+build_output.txt
+runner_output.txt
+test_output.txt
+client/build_log.txt
+*.csproj.old
+
+# Claude config
+.claude/
+
 # Godot (Phase 1E)
 *.import
 .godot/
