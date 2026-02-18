@@ -169,6 +169,40 @@ pub enum SimEvent {
         message: String,
         severity: String,
     },
+
+    // ── Phase 3.1: Payment rail events ──────────────────────────────
+    PaymentBatchCreated {
+        tick: Tick,
+        batch_id: String,
+        rail_id: String,
+        item_count: i64,
+        total_amount: f64,
+    },
+    PaymentBatchSettled {
+        tick: Tick,
+        batch_id: String,
+        rail_id: String,
+        exceptions: i64,
+    },
+    PaymentBatchFailed {
+        tick: Tick,
+        batch_id: String,
+        rail_id: String,
+        reason: String,
+    },
+    CardAuthorizationCreated {
+        tick: Tick,
+        authorization_id: String,
+        account_id: String,
+        amount: f64,
+        merchant_name: String,
+    },
+    CardSettled {
+        tick: Tick,
+        authorization_id: String,
+        original_auth_amount: f64,
+        settled_amount: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

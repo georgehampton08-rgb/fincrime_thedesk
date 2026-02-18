@@ -1,0 +1,46 @@
+{
+    "rails": [
+        {
+            "rail_id": "ACH",
+            "rail_type": "ACH",
+            "latency_type": "batch",
+            "settlement_delay_ticks": 1,
+            "fraud_risk_multiplier": 0.5,
+            "operational_risk_base": 0.001,
+            "batch_window_ticks": 4,
+            "cutoff_time_tick": null
+        },
+        {
+            "rail_id": "wire",
+            "rail_type": "wire",
+            "latency_type": "real_time",
+            "settlement_delay_ticks": 0,
+            "fraud_risk_multiplier": 1.5,
+            "operational_risk_base": 0.002,
+            "batch_window_ticks": null,
+            "cutoff_time_tick": 18
+        },
+        {
+            "rail_id": "RTP",
+            "rail_type": "RTP",
+            "latency_type": "real_time",
+            "settlement_delay_ticks": 0,
+            "fraud_risk_multiplier": 2.0,
+            "operational_risk_base": 0.0015,
+            "batch_window_ticks": null,
+            "cutoff_time_tick": null
+        },
+        {
+            "rail_id": "card",
+            "rail_type": "card",
+            "latency_type": "batch",
+            "settlement_delay_ticks": 1,
+            "fraud_risk_multiplier": 1.2,
+            "operational_risk_base": 0.0012,
+            "batch_window_ticks": 1,
+            "cutoff_time_tick": null
+        }
+    ],
+    "interchange_fee_rate": 0.025,
+    "auth_expiry_ticks": 7
+}

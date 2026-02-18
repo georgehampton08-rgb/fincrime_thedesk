@@ -90,7 +90,26 @@ impl TransactionSubsystem {
             };
 
             let txn_id = Uuid::new_v4().to_string();
-            self.store.insert_transaction(
+
+            // Select payment rail for debit transactions
+            let (rail_id, settlement_status) = if is_cash {
+                // Cash withdrawals always go through ACH, settle immediately
+                ("ACH", "settled")
+            } else {
+                // Purchase: select payment rail
+                let rail_roll = rng.next_f64();
+                if rail_roll < 0.50 {
+                    ("card", "pending_authorization")
+                } else if rail_roll < 0.80 {
+                    ("ACH", "settled")
+                } else if rail_roll < 0.90 {
+                    ("wire", "settled")
+                } else {
+                    ("RTP", "settled")
+                }
+            };
+
+            self.store.insert_transaction_with_rail(
                 &self.run_id,
                 &txn_id,
                 account_id,
@@ -99,9 +118,16 @@ impl TransactionSubsystem {
                 "debit",
                 category,
                 counterparty.as_deref(),
+                rail_id,
+                settlement_status,
             )?;
-            self.store
-                .update_account_balance(&self.run_id, account_id, -amount)?;
+            // For non-card rails, update balance immediately (already settled)
+            // For card rails, only available_balance is affected (handled by PaymentHub)
+            if rail_id != "card" {
+                self.store
+                    .update_account_balance(&self.run_id, account_id, -amount)?;
+            }
+            // Card transactions: PaymentHubSubsystem will handle auth hold on available_balance
         }
 
         // Overdraft check: if balance < 0 after debits

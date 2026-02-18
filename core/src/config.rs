@@ -394,6 +394,34 @@ struct FeeConstraintsFile {
     impact_formulas: HashMap<String, FeeImpactFormula>,
 }
 
+// ── Phase 3.1: Payment hub ────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentRailConfig {
+    pub rail_id: String,
+    pub rail_type: String,
+    pub latency_type: String,
+    pub settlement_delay_ticks: Tick,
+    pub fraud_risk_multiplier: f64,
+    pub operational_risk_base: f64,
+    pub batch_window_ticks: Option<Tick>,
+    pub cutoff_time_tick: Option<Tick>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentHubConfig {
+    pub rails: Vec<PaymentRailConfig>,
+    pub interchange_fee_rate: f64,
+    pub auth_expiry_ticks: Tick,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PaymentHubFile {
+    rails: Vec<PaymentRailConfig>,
+    interchange_fee_rate: f64,
+    auth_expiry_ticks: Tick,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments: HashMap<String, SegmentConfig>,
@@ -408,6 +436,7 @@ pub struct SimConfig {
     pub segment_economics: SegmentEconomicsConfig,
     pub complaint_analytics: ComplaintAnalyticsConfig,
     pub risk_appetite: RiskAppetiteConfig,
+    pub payment_hub: PaymentHubConfig,
 }
 
 impl SimConfig {
@@ -505,6 +534,16 @@ impl SimConfig {
             board_pressure: risk_file.board_pressure,
         };
 
+        let payment_path = format!("{data_dir}/payment/payment_rails_config.json");
+        let payment_content = std::fs::read_to_string(&payment_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {payment_path}: {e}"))?;
+        let payment_file: PaymentHubFile = serde_json::from_str(&payment_content)?;
+        let payment_hub = PaymentHubConfig {
+            rails: payment_file.rails,
+            interchange_fee_rate: payment_file.interchange_fee_rate,
+            auth_expiry_ticks: payment_file.auth_expiry_ticks,
+        };
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -518,6 +557,7 @@ impl SimConfig {
             segment_economics,
             complaint_analytics,
             risk_appetite,
+            payment_hub,
         })
     }
 
@@ -941,6 +981,53 @@ impl SimConfig {
             },
         };
 
+        let payment_hub = PaymentHubConfig {
+            rails: vec![
+                PaymentRailConfig {
+                    rail_id: "ACH".into(),
+                    rail_type: "ACH".into(),
+                    latency_type: "batch".into(),
+                    settlement_delay_ticks: 1,
+                    fraud_risk_multiplier: 0.5,
+                    operational_risk_base: 0.001,
+                    batch_window_ticks: Some(4),
+                    cutoff_time_tick: None,
+                },
+                PaymentRailConfig {
+                    rail_id: "wire".into(),
+                    rail_type: "wire".into(),
+                    latency_type: "real_time".into(),
+                    settlement_delay_ticks: 0,
+                    fraud_risk_multiplier: 1.5,
+                    operational_risk_base: 0.002,
+                    batch_window_ticks: None,
+                    cutoff_time_tick: Some(18),
+                },
+                PaymentRailConfig {
+                    rail_id: "RTP".into(),
+                    rail_type: "RTP".into(),
+                    latency_type: "real_time".into(),
+                    settlement_delay_ticks: 0,
+                    fraud_risk_multiplier: 2.0,
+                    operational_risk_base: 0.0015,
+                    batch_window_ticks: None,
+                    cutoff_time_tick: None,
+                },
+                PaymentRailConfig {
+                    rail_id: "card".into(),
+                    rail_type: "card".into(),
+                    latency_type: "batch".into(),
+                    settlement_delay_ticks: 1,
+                    fraud_risk_multiplier: 1.2,
+                    operational_risk_base: 0.0012,
+                    batch_window_ticks: Some(1),
+                    cutoff_time_tick: None,
+                },
+            ],
+            interchange_fee_rate: 0.025,
+            auth_expiry_ticks: 7,
+        };
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
@@ -954,6 +1041,7 @@ impl SimConfig {
             segment_economics,
             complaint_analytics,
             risk_appetite,
+            payment_hub,
         }
     }
 }

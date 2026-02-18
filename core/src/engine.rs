@@ -76,6 +76,7 @@ impl SimEngine {
         let store_churn = store.reopen()?;
         let store_complaint_analytics = store.reopen()?;
         let store_risk_appetite = store.reopen()?;
+        let store_payment_hub = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -119,6 +120,15 @@ impl SimEngine {
             )),
         );
         // Phase 1C:
+        // Phase 3.1: PaymentHub (after Transaction, before Complaint)
+        engine.register(
+            SubsystemSlot::PaymentHub,
+            Box::new(crate::payment_hub_subsystem::PaymentHubSubsystem::new(
+                run_id.clone(),
+                config.payment_hub.clone(),
+                store_payment_hub,
+            )),
+        );
         engine.register(
             SubsystemSlot::Complaint,
             Box::new(crate::complaint_subsystem::ComplaintSubsystem::new(
@@ -187,6 +197,7 @@ impl SimEngine {
         let store_churn = store.reopen()?;
         let store_complaint_analytics = store.reopen()?;
         let store_risk_appetite = store.reopen()?;
+        let store_payment_hub = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -223,6 +234,15 @@ impl SimEngine {
             Box::new(crate::transaction_subsystem::TransactionSubsystem::new(
                 run_id.clone(),
                 store_txn,
+            )),
+        );
+        // Phase 3.1: PaymentHub (after Transaction, before Complaint)
+        engine.register(
+            SubsystemSlot::PaymentHub,
+            Box::new(crate::payment_hub_subsystem::PaymentHubSubsystem::new(
+                run_id.clone(),
+                config.payment_hub.clone(),
+                store_payment_hub,
             )),
         );
         engine.register(
@@ -600,6 +620,45 @@ impl SimEngine {
     ) -> SimResult<Vec<crate::economics_subsystem::SegmentPnL>> {
         self.store.segment_pnls_at_tick(run_id, tick)
     }
+
+    // Phase 3.1: Payment hub test helpers
+
+    pub fn store_authorization_count(&self, run_id: &str, status: &str) -> SimResult<i64> {
+        self.store.authorization_count(run_id, status)
+    }
+
+    pub fn store_payment_batch_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.payment_batch_count(run_id)
+    }
+
+    pub fn store_external_statement_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.external_statement_count(run_id)
+    }
+
+    pub fn store_get_authorization(
+        &self,
+        run_id: &str,
+        auth_id: &str,
+    ) -> SimResult<crate::store::AuthorizationRow> {
+        self.store.get_authorization(run_id, auth_id)
+    }
+
+    pub fn store_get_account_balances(
+        &self,
+        run_id: &str,
+        account_id: &str,
+    ) -> SimResult<(f64, f64)> {
+        self.store.get_account_balances(run_id, account_id)
+    }
+
+    pub fn store_get_external_statement(
+        &self,
+        run_id: &str,
+        rail_id: &str,
+        tick: Tick,
+    ) -> SimResult<Option<crate::store::ExternalStatementRow>> {
+        self.store.get_external_statement(run_id, rail_id, tick)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -628,5 +687,10 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::RiskDialChanged { .. } => "risk_dial_changed",
         SimEvent::RiskDialRejected { .. } => "risk_dial_rejected",
         SimEvent::BoardPressureFired { .. } => "board_pressure_fired",
+        SimEvent::PaymentBatchCreated { .. } => "payment_batch_created",
+        SimEvent::PaymentBatchSettled { .. } => "payment_batch_settled",
+        SimEvent::PaymentBatchFailed { .. } => "payment_batch_failed",
+        SimEvent::CardAuthorizationCreated { .. } => "card_authorization_created",
+        SimEvent::CardSettled { .. } => "card_settled",
     }
 }
