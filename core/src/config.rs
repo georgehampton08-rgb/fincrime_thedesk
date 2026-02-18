@@ -247,6 +247,76 @@ struct SegmentEconomicsFile {
     revenue_attribution: RevenueAttribution,
 }
 
+// ── Phase 2.5: Complaint analytics ─────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplaintAnalyticsConfig {
+    pub pattern_detection: PatternDetectionConfig,
+    pub root_cause_tracking: RootCauseConfig,
+    pub resolution_effectiveness: ResolutionEffectivenessConfig,
+    pub sla_performance: SLAPerformanceConfig,
+    pub early_warning_indicators: EarlyWarningConfig,
+    pub cost_analysis: ComplaintCostConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatternDetectionConfig {
+    pub clustering_window_ticks: Tick,
+    pub cluster_threshold_count: u32,
+    pub velocity_spike_threshold: f64,
+    pub issue_categories: HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RootCauseConfig {
+    pub fee_complaint_correlation_window: Tick,
+    pub product_change_correlation_window: Tick,
+    pub life_event_correlation_window: Tick,
+    pub attribution_confidence_threshold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolutionEffectivenessConfig {
+    pub satisfaction_impact_weights: HashMap<String, f64>,
+    pub churn_impact_weights: HashMap<String, f64>,
+    pub effectiveness_measurement_window: Tick,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SLAPerformanceConfig {
+    pub aging_buckets: Vec<serde_json::Value>,
+    pub breach_prediction_thresholds: HashMap<String, f64>,
+    pub critical_aging_threshold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EarlyWarningConfig {
+    pub velocity_comparison_periods: Vec<Tick>,
+    pub breach_rate_warning_threshold: f64,
+    pub repeat_complainer_threshold: u32,
+    pub segment_concentration_warning: f64,
+    pub issue_type_concentration_warning: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplaintCostConfig {
+    pub average_handle_time_minutes: HashMap<String, u32>,
+    pub loaded_hourly_rate: f64,
+    pub escalation_cost_multiplier: f64,
+    pub legal_review_cost: f64,
+    pub write_off_authorization_cost: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ComplaintAnalyticsFile {
+    pattern_detection: PatternDetectionConfig,
+    root_cause_tracking: RootCauseConfig,
+    resolution_effectiveness: ResolutionEffectivenessConfig,
+    sla_performance: SLAPerformanceConfig,
+    early_warning_indicators: EarlyWarningConfig,
+    cost_analysis: ComplaintCostConfig,
+}
+
 // ── Phase 2.1: Fee constraints ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,6 +353,7 @@ pub struct SimConfig {
     pub offers: HashMap<String, OfferConfig>,
     pub churn_model: ChurnModelConfig,
     pub segment_economics: SegmentEconomicsConfig,
+    pub complaint_analytics: ComplaintAnalyticsConfig,
 }
 
 impl SimConfig {
@@ -355,6 +426,20 @@ impl SimConfig {
             revenue_attribution: seg_econ_file.revenue_attribution,
         };
 
+        let complaint_analytics_path = format!("{data_dir}/complaints/analytics_config.json");
+        let complaint_analytics_content = std::fs::read_to_string(&complaint_analytics_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {complaint_analytics_path}: {e}"))?;
+        let complaint_analytics_file: ComplaintAnalyticsFile =
+            serde_json::from_str(&complaint_analytics_content)?;
+        let complaint_analytics = ComplaintAnalyticsConfig {
+            pattern_detection: complaint_analytics_file.pattern_detection,
+            root_cause_tracking: complaint_analytics_file.root_cause_tracking,
+            resolution_effectiveness: complaint_analytics_file.resolution_effectiveness,
+            sla_performance: complaint_analytics_file.sla_performance,
+            early_warning_indicators: complaint_analytics_file.early_warning_indicators,
+            cost_analysis: complaint_analytics_file.cost_analysis,
+        };
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -366,6 +451,7 @@ impl SimConfig {
             offers,
             churn_model,
             segment_economics,
+            complaint_analytics,
         })
     }
 
@@ -650,6 +736,45 @@ impl SimConfig {
             },
         };
 
+        let complaint_analytics = ComplaintAnalyticsConfig {
+            pattern_detection: PatternDetectionConfig {
+                clustering_window_ticks: 30,
+                cluster_threshold_count: 5,
+                velocity_spike_threshold: 1.5,
+                issue_categories: HashMap::new(),
+            },
+            root_cause_tracking: RootCauseConfig {
+                fee_complaint_correlation_window: 7,
+                product_change_correlation_window: 14,
+                life_event_correlation_window: 30,
+                attribution_confidence_threshold: 0.70,
+            },
+            resolution_effectiveness: ResolutionEffectivenessConfig {
+                satisfaction_impact_weights: HashMap::new(),
+                churn_impact_weights: HashMap::new(),
+                effectiveness_measurement_window: 90,
+            },
+            sla_performance: SLAPerformanceConfig {
+                aging_buckets: vec![],
+                breach_prediction_thresholds: HashMap::new(),
+                critical_aging_threshold: 0.90,
+            },
+            early_warning_indicators: EarlyWarningConfig {
+                velocity_comparison_periods: vec![7, 30, 90],
+                breach_rate_warning_threshold: 0.15,
+                repeat_complainer_threshold: 3,
+                segment_concentration_warning: 0.60,
+                issue_type_concentration_warning: 0.50,
+            },
+            cost_analysis: ComplaintCostConfig {
+                average_handle_time_minutes: [("standard".into(), 35)].into(),
+                loaded_hourly_rate: 45.0,
+                escalation_cost_multiplier: 2.5,
+                legal_review_cost: 350.0,
+                write_off_authorization_cost: 125.0,
+            },
+        };
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
@@ -661,6 +786,7 @@ impl SimConfig {
             offers,
             churn_model,
             segment_economics,
+            complaint_analytics,
         }
     }
 }

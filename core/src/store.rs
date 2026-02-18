@@ -67,6 +67,8 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/009_customer_close_tick.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/010_segment_pnl.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/011_complaint_analytics.sql"))?;
         Ok(())
     }
 
@@ -2320,6 +2322,506 @@ impl SimStore {
         )?;
         Ok(())
     }
+
+    // ── Complaint analytics ─────────────────────────────────────────
+
+    pub fn complaint_count_by_category(
+        &self,
+        run_id: &str,
+        category: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint
+             WHERE run_id = ?1
+               AND issue LIKE ?2
+               AND tick_opened >= ?3 AND tick_opened <= ?4",
+            params![
+                run_id,
+                format!("%{}%", category),
+                start_tick as i64,
+                end_tick as i64
+            ],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn total_complaints_in_window(
+        &self,
+        run_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint
+             WHERE run_id = ?1
+               AND tick_opened >= ?2 AND tick_opened <= ?3",
+            params![run_id, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn complaint_count_by_segment(
+        &self,
+        run_id: &str,
+        segment: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint c
+             JOIN customer cu ON c.customer_id = cu.customer_id AND c.run_id = cu.run_id
+             WHERE c.run_id = ?1 AND cu.segment = ?2
+               AND c.tick_opened >= ?3 AND c.tick_opened <= ?4",
+            params![run_id, segment, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn recent_complaints(
+        &self,
+        run_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<Vec<RecentComplaint>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT complaint_id, customer_id, issue, tick_opened
+             FROM complaint
+             WHERE run_id = ?1
+               AND tick_opened >= ?2 AND tick_opened <= ?3",
+        )?;
+        let complaints = stmt
+            .query_map(params![run_id, start_tick as i64, end_tick as i64], |row| {
+                Ok(RecentComplaint {
+                    complaint_id: row.get(0)?,
+                    customer_id: row.get(1)?,
+                    issue: row.get(2)?,
+                    tick_opened: row.get::<_, i64>(3)? as u64,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(complaints)
+    }
+
+    pub fn customer_recent_fee(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<Option<(String, Tick)>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT t.category, t.tick
+                 FROM transactions t
+                 JOIN account a ON t.account_id = a.account_id AND t.run_id = a.run_id
+                 WHERE t.run_id = ?1 AND a.customer_id = ?2
+                   AND t.category IN ('overdraft_fee', 'nsf_fee', 'monthly_fee')
+                   AND t.tick >= ?3 AND t.tick <= ?4
+                 ORDER BY t.tick DESC
+                 LIMIT 1",
+                params![run_id, customer_id, start_tick as i64, end_tick as i64],
+                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u64)),
+            )
+            .optional()?)
+    }
+
+    pub fn customer_active_life_event(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+        tick: Tick,
+    ) -> SimResult<Option<String>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT event_type
+                 FROM life_event
+                 WHERE run_id = ?1 AND customer_id = ?2 AND active = 1
+                   AND tick_occurred <= ?3 AND tick_expires >= ?3
+                 LIMIT 1",
+                params![run_id, customer_id, tick as i64],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    pub fn complaints_resolved_with_code(
+        &self,
+        run_id: &str,
+        resolution_code: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT complaint_id
+             FROM complaint
+             WHERE run_id = ?1
+               AND resolution_code = ?2
+               AND tick_closed >= ?3 AND tick_closed <= ?4",
+        )?;
+        let ids = stmt
+            .query_map(
+                params![run_id, resolution_code, start_tick as i64, end_tick as i64],
+                |row| row.get(0),
+            )?
+            .collect::<Result<Vec<String>, _>>()?;
+        Ok(ids)
+    }
+
+    pub fn complaint_impact_deltas(
+        &self,
+        _run_id: &str,
+        _complaint_id: &str,
+    ) -> SimResult<ComplaintImpactDeltas> {
+        // Simplified: returns representative defaults.
+        // Full implementation would track pre/post satisfaction snapshots.
+        Ok(ComplaintImpactDeltas {
+            satisfaction_delta: 0.05,
+            churn_risk_delta: -0.03,
+            had_repeat_complaint: false,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_resolution_effectiveness(
+        &self,
+        run_id: &str,
+        resolution_code: &str,
+        tick: Tick,
+        avg_sat_delta: f64,
+        avg_churn_delta: f64,
+        repeat_rate: f64,
+        escalation_rate: f64,
+        count: i64,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO resolution_effectiveness (
+                run_id, resolution_code, measurement_tick,
+                avg_satisfaction_delta, avg_churn_risk_delta,
+                repeat_complaint_rate, escalation_rate, resolution_count
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                run_id,
+                resolution_code,
+                tick as i64,
+                avg_sat_delta,
+                avg_churn_delta,
+                repeat_rate,
+                escalation_rate,
+                count,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn open_complaints_by_priority(
+        &self,
+        run_id: &str,
+        priority: &str,
+    ) -> SimResult<Vec<OpenComplaint>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT complaint_id, tick_opened, sla_due_tick, sla_breached
+             FROM complaint
+             WHERE run_id = ?1 AND priority = ?2 AND status = 'open'",
+        )?;
+        let complaints = stmt
+            .query_map(params![run_id, priority], |row| {
+                Ok(OpenComplaint {
+                    complaint_id: row.get(0)?,
+                    tick_opened: row.get::<_, i64>(1)? as u64,
+                    sla_due_tick: row.get::<_, i64>(2)? as u64,
+                    sla_breached: row.get::<_, i32>(3)? != 0,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(complaints)
+    }
+
+    pub fn customers_with_complaint_count_gte(
+        &self,
+        run_id: &str,
+        threshold: i64,
+    ) -> SimResult<Vec<(String, i64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT customer_id, COUNT(*) as cnt
+             FROM complaint
+             WHERE run_id = ?1
+             GROUP BY customer_id
+             HAVING cnt >= ?2",
+        )?;
+        let results = stmt
+            .query_map(params![run_id, threshold], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(results)
+    }
+
+    pub fn customer_unresolved_complaints(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint
+             WHERE run_id = ?1 AND customer_id = ?2 AND status = 'open'",
+            params![run_id, customer_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn customer_breached_complaints(&self, run_id: &str, customer_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint
+             WHERE run_id = ?1 AND customer_id = ?2 AND sla_breached = 1",
+            params![run_id, customer_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn customer_latest_churn_risk(&self, run_id: &str, customer_id: &str) -> SimResult<f64> {
+        let risk: Option<f64> = self
+            .conn
+            .query_row(
+                "SELECT churn_risk
+                 FROM customer_churn_score
+                 WHERE run_id = ?1 AND customer_id = ?2
+                 ORDER BY tick DESC
+                 LIMIT 1",
+                params![run_id, customer_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(risk.unwrap_or(0.0))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_repeat_complainer(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+        tick: Tick,
+        count: i64,
+        unresolved: i64,
+        breached: i64,
+        churn_risk: f64,
+        regulatory_risk: bool,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO repeat_complainer (
+                run_id, customer_id, tick_flagged, complaint_count,
+                total_unresolved, total_breached, avg_severity, churn_risk,
+                regulatory_risk_flag
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0.5, ?7, ?8)",
+            params![
+                run_id,
+                customer_id,
+                tick as i64,
+                count,
+                unresolved,
+                breached,
+                churn_risk,
+                if regulatory_risk { 1 } else { 0 },
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn segment_breach_rate(
+        &self,
+        run_id: &str,
+        segment: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<f64> {
+        let total: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint c
+             JOIN customer cu ON c.customer_id = cu.customer_id AND c.run_id = cu.run_id
+             WHERE c.run_id = ?1 AND cu.segment = ?2
+               AND c.tick_opened >= ?3 AND c.tick_opened <= ?4",
+            params![run_id, segment, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+
+        if total == 0 {
+            return Ok(0.0);
+        }
+
+        let breached: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM complaint c
+             JOIN customer cu ON c.customer_id = cu.customer_id AND c.run_id = cu.run_id
+             WHERE c.run_id = ?1 AND cu.segment = ?2
+               AND c.sla_breached = 1
+               AND c.tick_opened >= ?3 AND c.tick_opened <= ?4",
+            params![run_id, segment, start_tick as i64, end_tick as i64],
+            |row| row.get(0),
+        )?;
+
+        Ok(breached as f64 / total as f64)
+    }
+
+    pub fn insert_complaint_pattern(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        pattern: &crate::complaint_analytics_subsystem::ComplaintPattern,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO complaint_pattern (
+                run_id, tick_detected, pattern_type, issue_category, segment,
+                affected_count, window_start_tick, window_end_tick,
+                velocity_ratio, concentration_pct, severity_score
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                run_id,
+                tick as i64,
+                pattern.pattern_type,
+                pattern.issue_category,
+                pattern.segment,
+                pattern.affected_count,
+                pattern.window_start_tick as i64,
+                pattern.window_end_tick as i64,
+                pattern.velocity_ratio,
+                pattern.concentration_pct,
+                pattern.severity_score,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_complaint_root_cause(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        rc: &crate::complaint_analytics_subsystem::ComplaintRootCause,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO complaint_root_cause (
+                run_id, complaint_id, root_cause_type, root_cause_id,
+                confidence_score, correlation_lag_ticks, attributed_tick
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                run_id,
+                rc.complaint_id,
+                rc.root_cause_type,
+                rc.root_cause_id,
+                rc.confidence_score,
+                rc.correlation_lag_ticks as i64,
+                tick as i64,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_sla_performance(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        snapshot: &crate::complaint_analytics_subsystem::SLAPerformanceSnapshot,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO sla_performance_snapshot (
+                run_id, tick, priority,
+                aging_0_3_days, aging_4_7_days, aging_8_14_days,
+                aging_15_30_days, aging_30_plus_days,
+                total_open, at_risk_count, breach_count,
+                breach_rate, avg_age_ticks
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![
+                run_id,
+                tick as i64,
+                snapshot.priority,
+                snapshot.aging_0_3_days,
+                snapshot.aging_4_7_days,
+                snapshot.aging_8_14_days,
+                snapshot.aging_15_30_days,
+                snapshot.aging_30_plus_days,
+                snapshot.total_open,
+                snapshot.at_risk_count,
+                snapshot.breach_count,
+                snapshot.breach_rate,
+                snapshot.avg_age_ticks,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_early_warning_alert(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        alert: &crate::complaint_analytics_subsystem::EarlyWarningAlert,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO early_warning_alert (
+                run_id, tick_fired, alert_type, severity, segment,
+                metric_name, current_value, threshold_value, delta_pct
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                run_id,
+                tick as i64,
+                alert.alert_type,
+                alert.severity,
+                alert.segment,
+                alert.metric_name,
+                alert.current_value,
+                alert.threshold_value,
+                alert.delta_pct,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn complaint_pattern_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM complaint_pattern WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn sla_snapshot_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM sla_performance_snapshot WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn early_warning_alert_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM early_warning_alert WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn repeat_complainer_count(&self, run_id: &str) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM repeat_complainer WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2372,6 +2874,29 @@ pub struct ChurnCohortRecord {
     pub total_fee_burden: f64,
     pub had_retention_offer: bool,
     pub primary_driver: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecentComplaint {
+    pub complaint_id: String,
+    pub customer_id: String,
+    pub issue: String,
+    pub tick_opened: Tick,
+}
+
+#[derive(Debug, Clone)]
+pub struct OpenComplaint {
+    pub complaint_id: String,
+    pub tick_opened: Tick,
+    pub sla_due_tick: Tick,
+    pub sla_breached: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComplaintImpactDeltas {
+    pub satisfaction_delta: f64,
+    pub churn_risk_delta: f64,
+    pub had_repeat_complaint: bool,
 }
 
 /// Row mapper for the complaint table — shared by several query methods.

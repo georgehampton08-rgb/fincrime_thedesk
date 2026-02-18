@@ -1,6 +1,7 @@
 pub mod churn_subsystem;
 pub mod clock;
 pub mod command;
+pub mod complaint_analytics_subsystem;
 pub mod complaint_subsystem;
 pub mod config;
 pub mod customer_subsystem;

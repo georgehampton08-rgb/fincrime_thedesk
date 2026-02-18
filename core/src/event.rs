@@ -138,6 +138,14 @@ pub enum SimEvent {
         event_type: String,
         duration: Tick,
     },
+
+    // ── Phase 2.5: Complaint analytics events ────────────────────
+    ComplaintWarningFired {
+        tick: Tick,
+        alert_type: String,
+        severity: String,
+        segment: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

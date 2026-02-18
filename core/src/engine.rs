@@ -74,6 +74,7 @@ impl SimEngine {
         let store_pricing = store.reopen()?;
         let store_offer = store.reopen()?;
         let store_churn = store.reopen()?;
+        let store_complaint_analytics = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -143,6 +144,17 @@ impl SimEngine {
                 store_economics,
             )),
         );
+        // Phase 2.5:
+        engine.register(
+            SubsystemSlot::ComplaintAnalytics,
+            Box::new(
+                crate::complaint_analytics_subsystem::ComplaintAnalyticsSubsystem::new(
+                    run_id.clone(),
+                    config.clone(),
+                    store_complaint_analytics,
+                ),
+            ),
+        );
         // Phase 3:  Fraud, Regulatory (stubs)
         Ok(engine)
     }
@@ -163,6 +175,7 @@ impl SimEngine {
         let store_pricing = store.reopen()?;
         let store_offer = store.reopen()?;
         let store_churn = store.reopen()?;
+        let store_complaint_analytics = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -221,10 +234,21 @@ impl SimEngine {
         engine.register(
             SubsystemSlot::Economics,
             Box::new(crate::economics_subsystem::EconomicsSubsystem::new(
-                run_id,
-                config,
+                run_id.clone(),
+                config.clone(),
                 store_economics,
             )),
+        );
+        // Phase 2.5:
+        engine.register(
+            SubsystemSlot::ComplaintAnalytics,
+            Box::new(
+                crate::complaint_analytics_subsystem::ComplaintAnalyticsSubsystem::new(
+                    run_id,
+                    config,
+                    store_complaint_analytics,
+                ),
+            ),
         );
         Ok(engine)
     }
@@ -507,6 +531,24 @@ impl SimEngine {
         self.store.all_churn_cohorts(run_id)
     }
 
+    // ── Complaint analytics wrapper methods ──────────────────────────────────
+
+    pub fn store_complaint_pattern_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.complaint_pattern_count(run_id)
+    }
+
+    pub fn store_sla_snapshot_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.sla_snapshot_count(run_id)
+    }
+
+    pub fn store_early_warning_alert_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.early_warning_alert_count(run_id)
+    }
+
+    pub fn store_repeat_complainer_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.repeat_complainer_count(run_id)
+    }
+
     // ── Segment P&L wrapper methods ─────────────────────────────────────────
 
     pub fn store_segment_pnl_count(&self, run_id: &str) -> SimResult<i64> {
@@ -544,5 +586,6 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::OfferCompleted { .. } => "offer_completed",
         SimEvent::OfferBonusPaid { .. } => "offer_bonus_paid",
         SimEvent::LifeEventOccurred { .. } => "life_event_occurred",
+        SimEvent::ComplaintWarningFired { .. } => "complaint_warning_fired",
     }
 }

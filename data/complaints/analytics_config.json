@@ -1,0 +1,93 @@
+{
+  "pattern_detection": {
+    "clustering_window_ticks": 30,
+    "cluster_threshold_count": 5,
+    "velocity_spike_threshold": 1.5,
+    "issue_categories": {
+      "fee_related": [
+        "overdraft_fee_dispute",
+        "nsf_fee_dispute",
+        "monthly_fee_dispute",
+        "unauthorized_fee"
+      ],
+      "service_related": [
+        "poor_service",
+        "branch_experience",
+        "call_center_wait",
+        "sla_breach"
+      ],
+      "product_related": [
+        "account_error",
+        "interest_rate_dispute",
+        "feature_not_working"
+      ],
+      "fraud_related": [
+        "unauthorized_transaction",
+        "identity_theft",
+        "card_fraud"
+      ]
+    }
+  },
+
+  "root_cause_tracking": {
+    "fee_complaint_correlation_window": 7,
+    "product_change_correlation_window": 14,
+    "life_event_correlation_window": 30,
+    "attribution_confidence_threshold": 0.70
+  },
+
+  "resolution_effectiveness": {
+    "satisfaction_impact_weights": {
+      "monetary_relief": 0.15,
+      "non_monetary_relief": 0.08,
+      "explanation_only": -0.02,
+      "no_error_found": -0.08,
+      "customer_withdrew": -0.05
+    },
+    "churn_impact_weights": {
+      "monetary_relief": -0.10,
+      "non_monetary_relief": -0.05,
+      "explanation_only": 0.03,
+      "no_error_found": 0.08,
+      "customer_withdrew": 0.02
+    },
+    "effectiveness_measurement_window": 90
+  },
+
+  "sla_performance": {
+    "aging_buckets": [
+      {"label": "0-3 days", "max_ticks": 3},
+      {"label": "4-7 days", "max_ticks": 7},
+      {"label": "8-14 days", "max_ticks": 14},
+      {"label": "15-30 days", "max_ticks": 30},
+      {"label": "30+ days", "max_ticks": 9999}
+    ],
+    "breach_prediction_thresholds": {
+      "standard": 0.80,
+      "high": 0.75,
+      "urgent": 0.65
+    },
+    "critical_aging_threshold": 0.90
+  },
+
+  "early_warning_indicators": {
+    "velocity_comparison_periods": [7, 30, 90],
+    "breach_rate_warning_threshold": 0.15,
+    "repeat_complainer_threshold": 3,
+    "segment_concentration_warning": 0.60,
+    "issue_type_concentration_warning": 0.50
+  },
+
+  "cost_analysis": {
+    "average_handle_time_minutes": {
+      "low": 15,
+      "standard": 35,
+      "high": 75,
+      "urgent": 120
+    },
+    "loaded_hourly_rate": 45.0,
+    "escalation_cost_multiplier": 2.5,
+    "legal_review_cost": 350.0,
+    "write_off_authorization_cost": 125.0
+  }
+}
