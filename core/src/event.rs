@@ -146,6 +146,29 @@ pub enum SimEvent {
         severity: String,
         segment: Option<String>,
     },
+
+    // ── Phase 2.6: Risk appetite events ─────────────────────
+    RiskDialChanged {
+        tick: Tick,
+        dial_id: String,
+        old_value: f64,
+        new_value: f64,
+        warnings: Option<String>,
+    },
+
+    RiskDialRejected {
+        tick: Tick,
+        dial_id: String,
+        attempted_value: f64,
+        reason: String,
+    },
+
+    BoardPressureFired {
+        tick: Tick,
+        pressure_type: String,
+        message: String,
+        severity: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

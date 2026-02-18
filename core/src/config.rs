@@ -317,6 +317,59 @@ struct ComplaintAnalyticsFile {
     cost_analysis: ComplaintCostConfig,
 }
 
+// ── Phase 2.6: Risk appetite ──────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAppetiteConfig {
+    pub dials: Vec<DialConfig>,
+    pub constraints: Vec<DialConstraint>,
+    pub risk_profile_scoring: RiskProfileScoring,
+    pub board_pressure: BoardPressureConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DialConfig {
+    pub dial_id: String,
+    pub label: String,
+    pub description: String,
+    pub min_value: f64,
+    pub max_value: f64,
+    pub default_value: f64,
+    pub comfort_zone_min: f64,
+    pub comfort_zone_max: f64,
+    pub step_size: f64,
+    pub impacts: HashMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DialConstraint {
+    pub constraint_id: String,
+    pub description: String,
+    pub condition: String,
+    pub violation_message: String,
+    pub enforcement: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskProfileScoring {
+    pub dimensions: Vec<serde_json::Value>,
+    pub risk_levels: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoardPressureConfig {
+    pub comfort_zone_violation_threshold: u32,
+    pub pressure_messages: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RiskAppetiteFile {
+    dials: Vec<DialConfig>,
+    constraints: Vec<DialConstraint>,
+    risk_profile_scoring: RiskProfileScoring,
+    board_pressure: BoardPressureConfig,
+}
+
 // ── Phase 2.1: Fee constraints ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -354,6 +407,7 @@ pub struct SimConfig {
     pub churn_model: ChurnModelConfig,
     pub segment_economics: SegmentEconomicsConfig,
     pub complaint_analytics: ComplaintAnalyticsConfig,
+    pub risk_appetite: RiskAppetiteConfig,
 }
 
 impl SimConfig {
@@ -440,6 +494,17 @@ impl SimConfig {
             cost_analysis: complaint_analytics_file.cost_analysis,
         };
 
+        let risk_path = format!("{data_dir}/risk/risk_appetite_config.json");
+        let risk_content = std::fs::read_to_string(&risk_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {risk_path}: {e}"))?;
+        let risk_file: RiskAppetiteFile = serde_json::from_str(&risk_content)?;
+        let risk_appetite = RiskAppetiteConfig {
+            dials: risk_file.dials,
+            constraints: risk_file.constraints,
+            risk_profile_scoring: risk_file.risk_profile_scoring,
+            board_pressure: risk_file.board_pressure,
+        };
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -452,6 +517,7 @@ impl SimConfig {
             churn_model,
             segment_economics,
             complaint_analytics,
+            risk_appetite,
         })
     }
 
@@ -775,6 +841,106 @@ impl SimConfig {
             },
         };
 
+        let risk_appetite = RiskAppetiteConfig {
+            dials: vec![
+                DialConfig {
+                    dial_id: "fee_aggressiveness".into(),
+                    label: "Fee Aggressiveness".into(),
+                    description: "Test dial".into(),
+                    min_value: 0.0,
+                    max_value: 2.0,
+                    default_value: 1.0,
+                    comfort_zone_min: 0.7,
+                    comfort_zone_max: 1.3,
+                    step_size: 0.1,
+                    impacts: [("overdraft_fee_multiplier".into(), 1.0)].into(),
+                },
+                DialConfig {
+                    dial_id: "growth_velocity".into(),
+                    label: "Growth Velocity".into(),
+                    description: "Test dial".into(),
+                    min_value: 0.0,
+                    max_value: 2.0,
+                    default_value: 1.0,
+                    comfort_zone_min: 0.8,
+                    comfort_zone_max: 1.5,
+                    step_size: 0.1,
+                    impacts: HashMap::new(),
+                },
+                DialConfig {
+                    dial_id: "service_level".into(),
+                    label: "Service Level".into(),
+                    description: "Test dial".into(),
+                    min_value: 0.5,
+                    max_value: 2.0,
+                    default_value: 1.0,
+                    comfort_zone_min: 0.9,
+                    comfort_zone_max: 1.4,
+                    step_size: 0.1,
+                    impacts: HashMap::new(),
+                },
+                DialConfig {
+                    dial_id: "retention_spend".into(),
+                    label: "Retention Spend".into(),
+                    description: "Test dial".into(),
+                    min_value: 0.0,
+                    max_value: 2.0,
+                    default_value: 1.0,
+                    comfort_zone_min: 0.7,
+                    comfort_zone_max: 1.5,
+                    step_size: 0.1,
+                    impacts: HashMap::new(),
+                },
+                DialConfig {
+                    dial_id: "compliance_stringency".into(),
+                    label: "Compliance Stringency".into(),
+                    description: "Test dial".into(),
+                    min_value: 0.5,
+                    max_value: 2.0,
+                    default_value: 1.0,
+                    comfort_zone_min: 0.9,
+                    comfort_zone_max: 1.3,
+                    step_size: 0.1,
+                    impacts: HashMap::new(),
+                },
+            ],
+            constraints: vec![
+                DialConstraint {
+                    constraint_id: "compliance_floor".into(),
+                    description: "Cannot drop compliance below minimum".into(),
+                    condition: "compliance_stringency < 0.6".into(),
+                    violation_message: "Regulatory minimum compliance level is 0.6".into(),
+                    enforcement: "hard_block".into(),
+                },
+                DialConstraint {
+                    constraint_id: "fee_service_balance".into(),
+                    description: "High fees require service".into(),
+                    condition: "fee_aggressiveness > 1.4 AND service_level < 1.0".into(),
+                    violation_message:
+                        "Aggressive fees generate complaints that require strong service".into(),
+                    enforcement: "warning".into(),
+                },
+            ],
+            risk_profile_scoring: RiskProfileScoring {
+                dimensions: vec![],
+                risk_levels: HashMap::new(),
+            },
+            board_pressure: BoardPressureConfig {
+                comfort_zone_violation_threshold: 2,
+                pressure_messages: [
+                    (
+                        "fee_aggressiveness_high".into(),
+                        "Board concerned about aggressive fees".into(),
+                    ),
+                    (
+                        "service_level_low".into(),
+                        "Board concerned about rising complaint rates".into(),
+                    ),
+                ]
+                .into(),
+            },
+        };
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
@@ -787,6 +953,7 @@ impl SimConfig {
             churn_model,
             segment_economics,
             complaint_analytics,
+            risk_appetite,
         }
     }
 }

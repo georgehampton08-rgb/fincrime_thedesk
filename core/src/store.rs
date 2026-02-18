@@ -69,6 +69,8 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/010_segment_pnl.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/011_complaint_analytics.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/012_risk_appetite.sql"))?;
         Ok(())
     }
 
@@ -1571,6 +1573,7 @@ impl SimStore {
             crate::command::PlayerCommand::SetSpeed { .. } => "set_speed",
             crate::command::PlayerCommand::CloseComplaint { .. } => "close_complaint",
             crate::command::PlayerCommand::SetProductFee { .. } => "set_product_fee",
+            crate::command::PlayerCommand::SetRiskDial { .. } => "set_risk_dial",
         };
 
         let payload = serde_json::to_string(command)?;
@@ -2821,6 +2824,150 @@ impl SimStore {
             |row| row.get(0),
         )?;
         Ok(count)
+    }
+
+    // ── Risk appetite ──────────────────────────────────────────
+
+    pub fn insert_risk_appetite_state(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        state: &crate::risk_appetite_subsystem::RiskAppetiteState,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO risk_appetite_state (
+                run_id, tick,
+                fee_aggressiveness, growth_velocity, service_level,
+                retention_spend, compliance_stringency,
+                overall_risk_score, revenue_risk, operational_risk,
+                compliance_risk, financial_risk, risk_level,
+                comfort_zone_violations
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![
+                run_id,
+                tick as i64,
+                state.fee_aggressiveness,
+                state.growth_velocity,
+                state.service_level,
+                state.retention_spend,
+                state.compliance_stringency,
+                state.overall_risk_score,
+                state.revenue_risk,
+                state.operational_risk,
+                state.compliance_risk,
+                state.financial_risk,
+                state.risk_level,
+                state.comfort_zone_violations,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn log_dial_change(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        dial_id: &str,
+        old_value: f64,
+        new_value: f64,
+        player_initiated: bool,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO dial_change_log (
+                run_id, tick, dial_id, old_value, new_value, player_initiated
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                run_id,
+                tick as i64,
+                dial_id,
+                old_value,
+                new_value,
+                if player_initiated { 1 } else { 0 },
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_board_pressure(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        pressure_type: &str,
+        dial_id: &str,
+        message: &str,
+        severity: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO board_pressure_event (
+                run_id, tick, pressure_type, dial_id, message, severity
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                run_id,
+                tick as i64,
+                pressure_type,
+                dial_id,
+                message,
+                severity
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn latest_risk_appetite_state(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Option<crate::risk_appetite_subsystem::RiskAppetiteState>> {
+        self.conn
+            .query_row(
+                "SELECT fee_aggressiveness, growth_velocity, service_level,
+                        retention_spend, compliance_stringency,
+                        overall_risk_score, revenue_risk, operational_risk,
+                        compliance_risk, financial_risk, risk_level,
+                        comfort_zone_violations
+                 FROM risk_appetite_state
+                 WHERE run_id = ?1
+                 ORDER BY tick DESC
+                 LIMIT 1",
+                params![run_id],
+                |row| {
+                    Ok(crate::risk_appetite_subsystem::RiskAppetiteState {
+                        fee_aggressiveness: row.get(0)?,
+                        growth_velocity: row.get(1)?,
+                        service_level: row.get(2)?,
+                        retention_spend: row.get(3)?,
+                        compliance_stringency: row.get(4)?,
+                        overall_risk_score: row.get(5)?,
+                        revenue_risk: row.get(6)?,
+                        operational_risk: row.get(7)?,
+                        compliance_risk: row.get(8)?,
+                        financial_risk: row.get(9)?,
+                        risk_level: row.get(10)?,
+                        comfort_zone_violations: row.get(11)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn dial_change_count(&self, run_id: &str) -> SimResult<i64> {
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM dial_change_log WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn board_pressure_count(&self, run_id: &str) -> SimResult<i64> {
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM board_pressure_event WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
     }
 }
 

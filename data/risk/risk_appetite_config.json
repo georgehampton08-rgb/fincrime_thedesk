@@ -1,0 +1,172 @@
+{
+  "dials": [
+    {
+      "dial_id": "fee_aggressiveness",
+      "label": "Fee Aggressiveness",
+      "description": "How aggressively to charge fees. Higher = more revenue, more complaints.",
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "default_value": 1.0,
+      "comfort_zone_min": 0.7,
+      "comfort_zone_max": 1.3,
+      "step_size": 0.1,
+      "impacts": {
+        "overdraft_fee_multiplier": 1.0,
+        "nsf_fee_multiplier": 1.0,
+        "monthly_fee_multiplier": 1.0,
+        "complaint_probability_multiplier": 1.0,
+        "satisfaction_delta_per_fee": -0.01,
+        "nii_multiplier": 1.0
+      }
+    },
+    {
+      "dial_id": "growth_velocity",
+      "label": "Growth Velocity",
+      "description": "How aggressively to acquire customers. Higher = more growth, higher acquisition costs.",
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "default_value": 1.0,
+      "comfort_zone_min": 0.8,
+      "comfort_zone_max": 1.5,
+      "step_size": 0.1,
+      "impacts": {
+        "customer_onboarding_rate_multiplier": 1.0,
+        "offer_bonus_multiplier": 1.0,
+        "acquisition_cost_multiplier": 1.0,
+        "bonus_seeker_probability_multiplier": 1.0,
+        "new_customer_satisfaction_bonus": 0.05
+      }
+    },
+    {
+      "dial_id": "service_level",
+      "label": "Service Level",
+      "description": "Quality of customer service. Higher = faster complaint resolution, higher OPEX.",
+      "min_value": 0.5,
+      "max_value": 2.0,
+      "default_value": 1.0,
+      "comfort_zone_min": 0.9,
+      "comfort_zone_max": 1.4,
+      "step_size": 0.1,
+      "impacts": {
+        "sla_deadline_multiplier": 1.0,
+        "complaint_resolution_speed_multiplier": 1.0,
+        "servicing_cost_multiplier": 1.0,
+        "satisfaction_boost_per_resolution": 0.02,
+        "sla_breach_probability_reduction": 0.0
+      }
+    },
+    {
+      "dial_id": "retention_spend",
+      "label": "Retention Spend",
+      "description": "Investment in keeping customers. Higher = lower churn, higher OPEX.",
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "default_value": 1.0,
+      "comfort_zone_min": 0.7,
+      "comfort_zone_max": 1.5,
+      "step_size": 0.1,
+      "impacts": {
+        "retention_offer_trigger_threshold": 0.70,
+        "retention_offer_bonus_multiplier": 1.0,
+        "churn_risk_reduction_effectiveness": 0.15,
+        "retention_cost_multiplier": 1.0
+      }
+    },
+    {
+      "dial_id": "compliance_stringency",
+      "label": "Compliance Stringency",
+      "description": "Rigor of compliance processes. Higher = lower regulatory risk, higher OPEX.",
+      "min_value": 0.5,
+      "max_value": 2.0,
+      "default_value": 1.0,
+      "comfort_zone_min": 0.9,
+      "comfort_zone_max": 1.3,
+      "step_size": 0.1,
+      "impacts": {
+        "complaint_documentation_quality": 1.0,
+        "regulatory_risk_reduction": 0.0,
+        "compliance_cost_multiplier": 1.0,
+        "audit_readiness_score": 0.70,
+        "false_positive_tolerance": 0.05
+      }
+    }
+  ],
+
+  "constraints": [
+    {
+      "constraint_id": "balanced_growth",
+      "description": "Cannot have high growth velocity with low service level (overwhelms staff)",
+      "condition": "growth_velocity > 1.5 AND service_level < 0.8",
+      "violation_message": "High growth requires adequate service capacity",
+      "enforcement": "warning"
+    },
+    {
+      "constraint_id": "fee_service_balance",
+      "description": "High fees require high service to manage complaints",
+      "condition": "fee_aggressiveness > 1.4 AND service_level < 1.0",
+      "violation_message": "Aggressive fees generate complaints that require strong service",
+      "enforcement": "warning"
+    },
+    {
+      "constraint_id": "compliance_floor",
+      "description": "Cannot drop compliance below minimum regulatory requirements",
+      "condition": "compliance_stringency < 0.6",
+      "violation_message": "Regulatory minimum compliance level is 0.6",
+      "enforcement": "hard_block"
+    },
+    {
+      "constraint_id": "retention_growth_conflict",
+      "description": "High retention spend with high growth is inefficient (spending on both)",
+      "condition": "retention_spend > 1.5 AND growth_velocity > 1.5",
+      "violation_message": "High retention + high growth creates cost inefficiency",
+      "enforcement": "warning"
+    }
+  ],
+
+  "risk_profile_scoring": {
+    "dimensions": [
+      {
+        "dimension": "revenue_risk",
+        "weight": 0.25,
+        "calculation": "(2.0 - fee_aggressiveness) * 0.5 + (2.0 - growth_velocity) * 0.5"
+      },
+      {
+        "dimension": "operational_risk",
+        "weight": 0.20,
+        "calculation": "(2.0 - service_level) * 0.6 + (growth_velocity - 1.0) * 0.4"
+      },
+      {
+        "dimension": "compliance_risk",
+        "weight": 0.30,
+        "calculation": "(2.0 - compliance_stringency) * 0.7 + (fee_aggressiveness - 1.0) * 0.3"
+      },
+      {
+        "dimension": "financial_risk",
+        "weight": 0.25,
+        "calculation": "retention_spend * 0.4 + growth_velocity * 0.3 + service_level * 0.3"
+      }
+    ],
+    "risk_levels": {
+      "conservative": {"max_score": 0.3, "color": "green"},
+      "moderate": {"max_score": 0.6, "color": "yellow"},
+      "aggressive": {"max_score": 0.85, "color": "orange"},
+      "dangerous": {"max_score": 1.0, "color": "red"}
+    }
+  },
+
+  "board_pressure": {
+    "comfort_zone_violation_threshold": 2,
+    "pressure_messages": {
+      "fee_aggressiveness_high": "The Board is concerned about reputation risk from aggressive fee policies",
+      "fee_aggressiveness_low": "The Board questions whether we're leaving revenue on the table",
+      "growth_velocity_high": "The Board worries rapid growth will strain operations",
+      "growth_velocity_low": "The Board expects stronger customer acquisition numbers",
+      "service_level_high": "The Board sees service costs eating into margins",
+      "service_level_low": "The Board is concerned about rising complaint rates",
+      "retention_spend_high": "The Board questions the ROI on retention investments",
+      "retention_spend_low": "The Board is alarmed by rising churn rates",
+      "compliance_stringency_high": "The Board views compliance spending as excessive",
+      "compliance_stringency_low": "The Board fears regulatory scrutiny"
+    }
+  }
+}

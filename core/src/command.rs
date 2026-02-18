@@ -25,9 +25,11 @@ pub enum PlayerCommand {
         fee_type: String, // "monthly_fee" | "overdraft_fee" | "nsf_fee" | "atm_fee" | "wire_fee"
         new_value: f64,
     },
-    // ── Phase 2+ ──────────────────────────────────
-    // SetRiskAppetite { parameter: String, value: f64 },
-    // CreateOffer { .. },
+    // ── Phase 2.6 ─────────────────────────────────
+    SetRiskDial {
+        dial_id: String,
+        new_value: f64,
+    },
 }
 
 /// A queued player command with its submission tick.

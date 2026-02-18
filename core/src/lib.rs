@@ -12,6 +12,7 @@ pub mod event;
 pub mod macro_subsystem;
 pub mod offer_subsystem;
 pub mod pricing_subsystem;
+pub mod risk_appetite_subsystem;
 pub mod rng;
 pub mod snapshot;
 pub mod store;

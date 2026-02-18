@@ -5,21 +5,22 @@
 //!   sim-runner --seed 12345 --connect-port 9000
 
 use anyhow::Result;
-use fincrime_core::{
-    engine::SimEngine,
-    store::SimStore,
-    types::Tick,
-};
+use fincrime_core::{engine::SimEngine, store::SimStore, types::Tick};
 use std::env;
-use std::io::{self, Write, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
 
 #[derive(serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum IpcCommand {
     GetState,
-    Tick { count: u64 },
-    Command { cmd: String, payload: serde_json::Value },
+    Tick {
+        count: u64,
+    },
+    Command {
+        cmd: String,
+        payload: serde_json::Value,
+    },
     Quit,
 }
 
@@ -43,14 +44,16 @@ fn main() -> Result<()> {
     env_logger::init();
 
     let args: Vec<String> = env::args().collect();
-    let seed     = parse_arg(&args, "--seed",  42u64);
-    let ticks    = parse_arg(&args, "--ticks", 365u64);
+    let seed = parse_arg(&args, "--seed", 42u64);
+    let ticks = parse_arg(&args, "--ticks", 365u64);
     let ipc_mode = args.iter().any(|a| a == "--ipc-mode");
-    let db       = args.windows(2)
+    let db = args
+        .windows(2)
         .find(|w| w[0] == "--db")
         .map(|w| w[1].as_str())
         .unwrap_or(":memory:");
-    let data_dir = args.windows(2)
+    let data_dir = args
+        .windows(2)
         .find(|w| w[0] == "--data-dir")
         .map(|w| w[1].as_str())
         .unwrap_or("./data");
@@ -134,19 +137,24 @@ fn run_ipc_loop(engine: &mut SimEngine, run_id: &str) -> Result<()> {
     Ok(())
 }
 
-fn handle_command(engine: &mut SimEngine, run_id: &str, cmd: &str, payload: serde_json::Value) -> Result<()> {
+fn handle_command(
+    engine: &mut SimEngine,
+    run_id: &str,
+    cmd: &str,
+    payload: serde_json::Value,
+) -> Result<()> {
     match cmd {
         "resolve_complaint" => {
             let complaint_id = payload["complaint_id"].as_str().unwrap_or_default();
             let resolution = payload["resolution"].as_str().unwrap_or("explanation_only");
             let refund = payload["refund"].as_f64().unwrap_or(0.0);
-            
+
             engine.store_close_complaint_direct(
-                run_id, 
-                complaint_id, 
-                engine.clock.current_tick, 
-                resolution, 
-                refund
+                run_id,
+                complaint_id,
+                engine.clock.current_tick,
+                resolution,
+                refund,
             )?;
         }
         _ => log::warn!("Unknown command: {}", cmd),
@@ -193,10 +201,10 @@ fn print_summary(engine: &SimEngine, store: &SimStore, run_id: &str, ticks: u64)
     let total_txns = store.txn_count_total(run_id)?;
     let avg_daily = total_txns as f64 / ticks as f64;
 
-    let complaints  = engine.store_complaint_count(run_id)?;
+    let complaints = engine.store_complaint_count(run_id)?;
     let sla_breaches = engine.store_sla_breach_count(run_id)?;
-    let backlog     = engine.store_complaint_backlog(run_id)?;
-    let churned     = engine.store_churned_count(run_id)?;
+    let backlog = engine.store_complaint_backlog(run_id)?;
+    let churned = engine.store_churned_count(run_id)?;
 
     println!("=== RUN SUMMARY ===");
     println!("  run_id:         {run_id}");
@@ -212,16 +220,16 @@ fn print_summary(engine: &SimEngine, store: &SimStore, run_id: &str, ticks: u64)
 
     println!();
     println!("=== FINANCIAL SUMMARY (Last 4 Quarters) ===");
-    let pnl_snapshots = engine
-        .store_all_pnl_snapshots(run_id)
-        .unwrap_or_default();
+    let pnl_snapshots = engine.store_all_pnl_snapshots(run_id).unwrap_or_default();
     if pnl_snapshots.is_empty() {
         println!("  (No quarters completed yet)");
     } else {
         let recent: Vec<_> = pnl_snapshots.iter().rev().take(4).collect();
         for p in recent.iter().rev() {
-            println!("  {} | Profit: ${:.0} | NIM: {:.2}% | Eff: {:.1}%",
-                p.period, p.pre_tax_profit, p.nim, p.efficiency_ratio);
+            println!(
+                "  {} | Profit: ${:.0} | NIM: {:.2}% | Eff: {:.1}%",
+                p.period, p.pre_tax_profit, p.nim, p.efficiency_ratio
+            );
         }
     }
     Ok(())

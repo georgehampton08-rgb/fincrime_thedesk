@@ -75,6 +75,7 @@ impl SimEngine {
         let store_offer = store.reopen()?;
         let store_churn = store.reopen()?;
         let store_complaint_analytics = store.reopen()?;
+        let store_risk_appetite = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -155,6 +156,15 @@ impl SimEngine {
                 ),
             ),
         );
+        // Phase 2.6:
+        engine.register(
+            SubsystemSlot::RiskAppetite,
+            Box::new(crate::risk_appetite_subsystem::RiskAppetiteSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_risk_appetite,
+            )),
+        );
         // Phase 3:  Fraud, Regulatory (stubs)
         Ok(engine)
     }
@@ -176,6 +186,7 @@ impl SimEngine {
         let store_offer = store.reopen()?;
         let store_churn = store.reopen()?;
         let store_complaint_analytics = store.reopen()?;
+        let store_risk_appetite = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -244,11 +255,20 @@ impl SimEngine {
             SubsystemSlot::ComplaintAnalytics,
             Box::new(
                 crate::complaint_analytics_subsystem::ComplaintAnalyticsSubsystem::new(
-                    run_id,
-                    config,
+                    run_id.clone(),
+                    config.clone(),
                     store_complaint_analytics,
                 ),
             ),
+        );
+        // Phase 2.6:
+        engine.register(
+            SubsystemSlot::RiskAppetite,
+            Box::new(crate::risk_appetite_subsystem::RiskAppetiteSubsystem::new(
+                run_id,
+                config,
+                store_risk_appetite,
+            )),
         );
         Ok(engine)
     }
@@ -270,6 +290,7 @@ impl SimEngine {
             crate::command::PlayerCommand::SetSpeed { .. } => "set_speed",
             crate::command::PlayerCommand::CloseComplaint { .. } => "close_complaint",
             crate::command::PlayerCommand::SetProductFee { .. } => "set_product_fee",
+            crate::command::PlayerCommand::SetRiskDial { .. } => "set_risk_dial",
         };
 
         self.pending_commands.push(SimEvent::PlayerCommandReceived {
@@ -555,6 +576,23 @@ impl SimEngine {
         self.store.segment_pnl_count(run_id)
     }
 
+    // ── Risk appetite wrapper methods ──────────────────────────────────
+
+    pub fn store_dial_change_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.dial_change_count(run_id)
+    }
+
+    pub fn store_board_pressure_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.board_pressure_count(run_id)
+    }
+
+    pub fn store_latest_risk_state(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Option<crate::risk_appetite_subsystem::RiskAppetiteState>> {
+        self.store.latest_risk_appetite_state(run_id)
+    }
+
     pub fn store_all_segment_pnls(
         &self,
         run_id: &str,
@@ -587,5 +625,8 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::OfferBonusPaid { .. } => "offer_bonus_paid",
         SimEvent::LifeEventOccurred { .. } => "life_event_occurred",
         SimEvent::ComplaintWarningFired { .. } => "complaint_warning_fired",
+        SimEvent::RiskDialChanged { .. } => "risk_dial_changed",
+        SimEvent::RiskDialRejected { .. } => "risk_dial_rejected",
+        SimEvent::BoardPressureFired { .. } => "board_pressure_fired",
     }
 }
