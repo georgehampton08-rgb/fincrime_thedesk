@@ -25,60 +25,60 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChurnScore {
-    pub customer_id:            String,
-    pub tick:                   Tick,
-    pub churn_risk:             f64,
+    pub customer_id: String,
+    pub tick: Tick,
+    pub churn_risk: f64,
     // Components
-    pub base_rate:              f64,
+    pub base_rate: f64,
     pub satisfaction_component: f64,
-    pub fee_burden_component:   f64,
-    pub complaint_component:    f64,
-    pub sla_breach_component:   f64,
-    pub inactivity_component:   f64,
-    pub product_depth_bonus:    f64,
-    pub retention_offer_bonus:  f64,
-    pub life_event_multiplier:  f64,
+    pub fee_burden_component: f64,
+    pub complaint_component: f64,
+    pub sla_breach_component: f64,
+    pub inactivity_component: f64,
+    pub product_depth_bonus: f64,
+    pub retention_offer_bonus: f64,
+    pub life_event_multiplier: f64,
     // Predictions
-    pub predicted_churn_30d:    f64,
-    pub predicted_churn_90d:    f64,
+    pub predicted_churn_30d: f64,
+    pub predicted_churn_90d: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifeEvent {
-    pub customer_id:       String,
-    pub event_type:        String,
-    pub tick_occurred:     Tick,
-    pub tick_expires:      Tick,
-    pub active:            bool,
-    pub churn_risk_delta:  f64,
+    pub customer_id: String,
+    pub event_type: String,
+    pub tick_occurred: Tick,
+    pub tick_expires: Tick,
+    pub active: bool,
+    pub churn_risk_delta: f64,
     pub behavioral_changes: serde_json::Value,
 }
 
 #[derive(Debug, Clone)]
 pub struct CustomerChurnInputs {
-    pub customer_id:                String,
-    pub segment:                    String,
-    pub open_tick:                  Tick,
-    pub satisfaction:               f64,
-    pub fee_burden_90d:             f64,
-    pub complaints_90d:             i64,
-    pub sla_breaches_90d:           i64,
-    pub ticks_since_last_txn:       Tick,
-    pub product_count:              usize,
+    pub customer_id: String,
+    pub segment: String,
+    pub open_tick: Tick,
+    pub satisfaction: f64,
+    pub fee_burden_90d: f64,
+    pub complaints_90d: i64,
+    pub sla_breaches_90d: i64,
+    pub ticks_since_last_txn: Tick,
+    pub product_count: usize,
     pub has_active_retention_offer: bool,
-    pub active_life_event_delta:    f64,
+    pub active_life_event_delta: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct ChurnAggregate {
-    pub active_customers:     i64,
-    pub churned_this_period:  i64,
-    pub high_risk_count:      i64,
-    pub churn_rate:           f64,
-    pub avg_churn_risk:       f64,
-    pub fee_driven_churn:     i64,
+    pub active_customers: i64,
+    pub churned_this_period: i64,
+    pub high_risk_count: i64,
+    pub churn_rate: f64,
+    pub avg_churn_risk: f64,
+    pub fee_driven_churn: i64,
     pub service_driven_churn: i64,
-    pub life_event_churn:     i64,
+    pub life_event_churn: i64,
 }
 
 // ── Subsystem ────────────────────────────────────────────────────────────────
@@ -86,12 +86,16 @@ pub struct ChurnAggregate {
 pub struct ChurnSubsystem {
     run_id: RunId,
     config: SimConfig,
-    store:  SimStore,
+    store: SimStore,
 }
 
 impl ChurnSubsystem {
     pub fn new(run_id: RunId, config: SimConfig, store: SimStore) -> Self {
-        Self { run_id, config, store }
+        Self {
+            run_id,
+            config,
+            store,
+        }
     }
 
     fn compute_churn_score(
@@ -101,17 +105,30 @@ impl ChurnSubsystem {
     ) -> SimResult<ChurnScore> {
         let formula = &self.config.churn_model.churn_formula;
 
-        let segment_params = self.config.churn_model.segment_base_rates
+        let segment_params = self
+            .config
+            .churn_model
+            .segment_base_rates
             .get(&customer.segment)
             .cloned()
             .or_else(|| {
                 // Fall back to first available segment
-                self.config.churn_model.segment_base_rates.values().next().cloned()
+                self.config
+                    .churn_model
+                    .segment_base_rates
+                    .values()
+                    .next()
+                    .cloned()
             });
 
         let (monthly_rate, fee_sens, svc_sens, offer_eff) = match segment_params {
-            Some(p) => (p.monthly_churn_rate, p.fee_sensitivity, p.service_sensitivity, p.offer_retention_effectiveness),
-            None    => (0.025, 0.80, 0.70, 0.65),
+            Some(p) => (
+                p.monthly_churn_rate,
+                p.fee_sensitivity,
+                p.service_sensitivity,
+                p.offer_retention_effectiveness,
+            ),
+            None => (0.025, 0.80, 0.70, 0.65),
         };
 
         // Base rate: monthly → per-tick
@@ -128,9 +145,8 @@ impl ChurnSubsystem {
             * fee_sens;
 
         // Complaint component
-        let complaint_component = formula.complaint_weight
-            * (customer.complaints_90d as f64 / 10.0).min(1.0)
-            * svc_sens;
+        let complaint_component =
+            formula.complaint_weight * (customer.complaints_90d as f64 / 10.0).min(1.0) * svc_sens;
 
         // SLA breach component
         let sla_breach_component = formula.sla_breach_weight
@@ -138,12 +154,14 @@ impl ChurnSubsystem {
             * svc_sens;
 
         // Inactivity component
-        let inactivity_component = if customer.ticks_since_last_txn > formula.inactivity_threshold_ticks {
-            let excess = (customer.ticks_since_last_txn - formula.inactivity_threshold_ticks) as f64;
-            formula.inactivity_weight * (excess / 30.0).min(1.0)
-        } else {
-            0.0
-        };
+        let inactivity_component =
+            if customer.ticks_since_last_txn > formula.inactivity_threshold_ticks {
+                let excess =
+                    (customer.ticks_since_last_txn - formula.inactivity_threshold_ticks) as f64;
+                formula.inactivity_weight * (excess / 30.0).min(1.0)
+            } else {
+                0.0
+            };
 
         // Product depth bonus (negative = good, reduces churn)
         let product_depth_bonus = if customer.product_count > 1 {
@@ -210,9 +228,7 @@ impl ChurnSubsystem {
 
         for event_cfg in &self.config.churn_model.life_events {
             // Segment filter
-            if !event_cfg.segments.is_empty()
-                && !event_cfg.segments.contains(&customer.segment)
-            {
+            if !event_cfg.segments.is_empty() && !event_cfg.segments.contains(&customer.segment) {
                 continue;
             }
 
@@ -221,12 +237,12 @@ impl ChurnSubsystem {
 
             if rng.chance(prob_per_tick) {
                 events.push(LifeEvent {
-                    customer_id:       customer.customer_id.clone(),
-                    event_type:        event_cfg.event_type.clone(),
-                    tick_occurred:     tick,
-                    tick_expires:      tick + event_cfg.duration_ticks,
-                    active:            true,
-                    churn_risk_delta:  event_cfg.churn_risk_delta,
+                    customer_id: customer.customer_id.clone(),
+                    event_type: event_cfg.event_type.clone(),
+                    tick_occurred: tick,
+                    tick_expires: tick + event_cfg.duration_ticks,
+                    active: true,
+                    churn_risk_delta: event_cfg.churn_risk_delta,
                     behavioral_changes: event_cfg.behavioral_changes.clone(),
                 });
             }
@@ -235,11 +251,7 @@ impl ChurnSubsystem {
         events
     }
 
-    fn should_churn(
-        &self,
-        score: &ChurnScore,
-        rng: &mut SubsystemRng,
-    ) -> bool {
+    fn should_churn(&self, score: &ChurnScore, rng: &mut SubsystemRng) -> bool {
         let t = &self.config.churn_model.churn_thresholds;
 
         if score.churn_risk < t.high_risk {
@@ -264,15 +276,23 @@ impl ChurnSubsystem {
         tick: Tick,
     ) -> SimResult<String> {
         let drivers = [
-            ("satisfaction",  score.satisfaction_component),
-            ("fee_burden",    score.fee_burden_component),
-            ("complaints",    score.complaint_component),
-            ("sla_breach",    score.sla_breach_component),
-            ("inactivity",    score.inactivity_component),
-            ("life_event",    if score.life_event_multiplier > 1.0 { 0.30 } else { 0.0 }),
+            ("satisfaction", score.satisfaction_component),
+            ("fee_burden", score.fee_burden_component),
+            ("complaints", score.complaint_component),
+            ("sla_breach", score.sla_breach_component),
+            ("inactivity", score.inactivity_component),
+            (
+                "life_event",
+                if score.life_event_multiplier > 1.0 {
+                    0.30
+                } else {
+                    0.0
+                },
+            ),
         ];
 
-        let primary_driver = drivers.iter()
+        let primary_driver = drivers
+            .iter()
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(name, _)| *name)
             .unwrap_or("unknown");
@@ -299,7 +319,9 @@ impl ChurnSubsystem {
 }
 
 impl SimSubsystem for ChurnSubsystem {
-    fn name(&self) -> &'static str { "churn" }
+    fn name(&self) -> &'static str {
+        "churn"
+    }
 
     fn update(
         &mut self,
@@ -317,7 +339,7 @@ impl SimSubsystem for ChurnSubsystem {
         self.store.expire_life_events(&self.run_id, tick)?;
 
         // Refresh scores every `update_frequency_ticks` ticks
-        if tick % self.config.churn_model.update_frequency_ticks == 0 {
+        if tick.is_multiple_of(self.config.churn_model.update_frequency_ticks) {
             let active = self.store.active_customers(&self.run_id)?;
 
             for customer_record in active {
@@ -342,13 +364,14 @@ impl SimSubsystem for ChurnSubsystem {
                 if self.should_churn(&score, rng) {
                     let cohort_id = self.record_churn_cohort(&inputs, &score, tick)?;
 
-                    self.store.churn_customer(&self.run_id, &customer_record.customer_id, tick)?;
+                    self.store
+                        .churn_customer(&self.run_id, &customer_record.customer_id, tick)?;
 
                     out.push(SimEvent::CustomerChurned {
                         tick,
                         customer_id: customer_record.customer_id.clone(),
-                        segment:     inputs.segment.clone(),
-                        churn_risk:  score.churn_risk,
+                        segment: inputs.segment.clone(),
+                        churn_risk: score.churn_risk,
                     });
 
                     log::info!(
@@ -371,21 +394,28 @@ impl SimSubsystem for ChurnSubsystem {
                     out.push(SimEvent::LifeEventOccurred {
                         tick,
                         customer_id: event.customer_id.clone(),
-                        event_type:  event.event_type.clone(),
+                        event_type: event.event_type.clone(),
                         duration,
                     });
 
                     log::debug!(
                         "tick={tick} churn: life_event={} for {} (delta={:.2})",
-                        event.event_type, event.customer_id, event.churn_risk_delta,
+                        event.event_type,
+                        event.customer_id,
+                        event.churn_risk_delta,
                     );
                 }
             }
 
             // Aggregate metrics per segment
             for segment in self.config.segments.keys().cloned().collect::<Vec<_>>() {
-                if let Ok(agg) = self.store.compute_churn_aggregate(&self.run_id, &segment, tick) {
-                    let _ = self.store.save_churn_aggregate(&self.run_id, &segment, tick, &agg);
+                if let Ok(agg) = self
+                    .store
+                    .compute_churn_aggregate(&self.run_id, &segment, tick)
+                {
+                    let _ = self
+                        .store
+                        .save_churn_aggregate(&self.run_id, &segment, tick, &agg);
                 }
             }
 
@@ -395,5 +425,7 @@ impl SimSubsystem for ChurnSubsystem {
         Ok(out)
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

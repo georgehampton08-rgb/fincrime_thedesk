@@ -1,5 +1,5 @@
 use crate::{
-    config::{SimConfig, SegmentConfig},
+    config::{SegmentConfig, SimConfig},
     error::SimResult,
     event::SimEvent,
     rng::SubsystemRng,
@@ -14,31 +14,36 @@ pub const SATISFACTION_DECAY_PER_TICK: f64 = 0.0002;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomerRecord {
-    pub customer_id:      String,
-    pub segment:          String,
-    pub income_band:      String,
-    pub risk_band:        String,
-    pub open_tick:        Tick,
-    pub status:           String, // active | churned | frozen
-    pub churn_risk:       f64,
-    pub satisfaction:     f64,
+    pub customer_id: String,
+    pub segment: String,
+    pub income_band: String,
+    pub risk_band: String,
+    pub open_tick: Tick,
+    pub status: String, // active | churned | frozen
+    pub churn_risk: f64,
+    pub satisfaction: f64,
     pub monthly_txn_mean: f64,
-    pub cash_intensity:   f64,
-    pub payroll_amount:   f64,
-    pub has_payroll:      bool,
-    pub product_id:       String,
+    pub cash_intensity: f64,
+    pub payroll_amount: f64,
+    pub has_payroll: bool,
+    pub product_id: String,
 }
 
 pub struct CustomerSubsystem {
-    run_id:      RunId,
-    config:      SimConfig,
-    store:       SimStore,
+    run_id: RunId,
+    config: SimConfig,
+    store: SimStore,
     initialized: bool,
 }
 
 impl CustomerSubsystem {
     pub fn new(run_id: RunId, config: SimConfig, store: SimStore) -> Self {
-        Self { run_id, config, store, initialized: false }
+        Self {
+            run_id,
+            config,
+            store,
+            initialized: false,
+        }
     }
 
     fn generate_initial_population(
@@ -63,27 +68,25 @@ impl CustomerSubsystem {
 
             // Individual transaction mean: segment mean ± 30%
             let mean_adj = 1.0 + (rng.next_f64() - 0.5) * 0.6;
-            let monthly_txn_mean =
-                (seg.monthly_txn_count_mean * mean_adj).max(3.0);
+            let monthly_txn_mean = (seg.monthly_txn_count_mean * mean_adj).max(3.0);
 
-            let product_id = seg.products[
-                rng.next_u64_below(seg.products.len() as u64) as usize
-            ].clone();
+            let product_id =
+                seg.products[rng.next_u64_below(seg.products.len() as u64) as usize].clone();
 
             let customer_id = format!("c-{i:06}");
-            let account_id  = format!("a-{i:06}");
+            let account_id = format!("a-{i:06}");
 
             let record = CustomerRecord {
-                customer_id:      customer_id.clone(),
-                segment:          seg.id.clone(),
-                income_band:      income_band.clone(),
-                risk_band:        "low".into(),
-                open_tick:        tick,
-                status:           "active".into(),
-                churn_risk:       0.0,
-                satisfaction:     0.8,
+                customer_id: customer_id.clone(),
+                segment: seg.id.clone(),
+                income_band: income_band.clone(),
+                risk_band: "low".into(),
+                open_tick: tick,
+                status: "active".into(),
+                churn_risk: 0.0,
+                satisfaction: 0.8,
                 monthly_txn_mean,
-                cash_intensity:   seg.cash_intensity,
+                cash_intensity: seg.cash_intensity,
                 payroll_amount,
                 has_payroll,
                 product_id,
@@ -99,30 +102,33 @@ impl CustomerSubsystem {
         let segments: Vec<_> = self.config.segments.values().collect();
         for seg in &segments {
             cumulative += seg.population_share;
-            if roll < cumulative { return seg; }
+            if roll < cumulative {
+                return seg;
+            }
         }
         segments.last().unwrap()
     }
 
-    fn pick_income_band(
-        &self,
-        seg: &SegmentConfig,
-        rng: &mut SubsystemRng,
-    ) -> String {
+    fn pick_income_band(&self, seg: &SegmentConfig, rng: &mut SubsystemRng) -> String {
         let roll = rng.next_f64();
         let mut cum = 0.0;
-        for (band, weight) in seg.income_bands.iter()
-            .zip(seg.income_band_weights.iter())
-        {
+        for (band, weight) in seg.income_bands.iter().zip(seg.income_band_weights.iter()) {
             cum += weight;
-            if roll < cum { return band.clone(); }
+            if roll < cum {
+                return band.clone();
+            }
         }
-        seg.income_bands.last().cloned().unwrap_or_else(|| "low".into())
+        seg.income_bands
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "low".into())
     }
 }
 
 impl SimSubsystem for CustomerSubsystem {
-    fn name(&self) -> &'static str { "customer" }
+    fn name(&self) -> &'static str {
+        "customer"
+    }
 
     fn update(
         &mut self,
@@ -150,7 +156,7 @@ impl SimSubsystem for CustomerSubsystem {
                 out_events.push(SimEvent::CustomerOnboarded {
                     tick,
                     customer_id: customer.customer_id.clone(),
-                    segment:     customer.segment.clone(),
+                    segment: customer.segment.clone(),
                     account_id,
                 });
                 onboarded += 1;
@@ -162,14 +168,19 @@ impl SimSubsystem for CustomerSubsystem {
         // Process fee events from the transaction subsystem
         // that affect satisfaction and churn risk.
         for event in events_in {
-            if let SimEvent::FeeCharged { customer_id, fee_type, .. } = event {
+            if let SimEvent::FeeCharged {
+                customer_id,
+                fee_type,
+                ..
+            } = event
+            {
                 self.store.update_customer_satisfaction(
                     &self.run_id,
                     customer_id,
                     match fee_type.as_str() {
                         "overdraft" => -0.04,
-                        "nsf"       => -0.06,
-                        _           => -0.01,
+                        "nsf" => -0.06,
+                        _ => -0.01,
                     },
                 )?;
             }
@@ -182,9 +193,7 @@ impl SimSubsystem for CustomerSubsystem {
             for mut c in active {
                 // Gentle satisfaction decay toward equilibrium
                 if c.satisfaction > 0.6 {
-                    c.satisfaction =
-                        (c.satisfaction - SATISFACTION_DECAY_PER_TICK * 30.0)
-                        .max(0.0);
+                    c.satisfaction = (c.satisfaction - SATISFACTION_DECAY_PER_TICK * 30.0).max(0.0);
                     self.store.update_customer_churn_satisfaction(
                         &self.run_id,
                         &c.customer_id,
@@ -198,5 +207,7 @@ impl SimSubsystem for CustomerSubsystem {
         Ok(out_events)
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -31,23 +31,39 @@ fn churn_score_components_are_non_negative() {
 
     engine.run_ticks(30).unwrap();
 
-    let scores = engine.store_all_churn_scores("churn-components-test", 30).unwrap();
+    let scores = engine
+        .store_all_churn_scores("churn-components-test", 30)
+        .unwrap();
 
     assert!(!scores.is_empty(), "Expected scores at tick 30");
 
     for s in &scores {
-        assert!(s.churn_risk >= 0.0 && s.churn_risk <= 1.0,
-            "churn_risk={} must be in [0,1]", s.churn_risk);
-        assert!(s.base_rate >= 0.0,
-            "base_rate={} must be ≥ 0", s.base_rate);
-        assert!(s.satisfaction_component >= 0.0,
-            "satisfaction_component={} must be ≥ 0", s.satisfaction_component);
-        assert!(s.fee_burden_component >= 0.0,
-            "fee_burden_component={} must be ≥ 0", s.fee_burden_component);
-        assert!(s.complaint_component >= 0.0,
-            "complaint_component={} must be ≥ 0", s.complaint_component);
-        assert!(s.inactivity_component >= 0.0,
-            "inactivity_component={} must be ≥ 0", s.inactivity_component);
+        assert!(
+            s.churn_risk >= 0.0 && s.churn_risk <= 1.0,
+            "churn_risk={} must be in [0,1]",
+            s.churn_risk
+        );
+        assert!(s.base_rate >= 0.0, "base_rate={} must be ≥ 0", s.base_rate);
+        assert!(
+            s.satisfaction_component >= 0.0,
+            "satisfaction_component={} must be ≥ 0",
+            s.satisfaction_component
+        );
+        assert!(
+            s.fee_burden_component >= 0.0,
+            "fee_burden_component={} must be ≥ 0",
+            s.fee_burden_component
+        );
+        assert!(
+            s.complaint_component >= 0.0,
+            "complaint_component={} must be ≥ 0",
+            s.complaint_component
+        );
+        assert!(
+            s.inactivity_component >= 0.0,
+            "inactivity_component={} must be ≥ 0",
+            s.inactivity_component
+        );
     }
 }
 
@@ -79,14 +95,20 @@ fn churn_cohorts_track_primary_driver() {
     let cohorts = engine.store_churn_cohorts("cohort-test").unwrap();
 
     let valid_drivers = [
-        "fee_burden", "satisfaction", "complaints",
-        "sla_breach", "inactivity", "life_event", "unknown",
+        "fee_burden",
+        "satisfaction",
+        "complaints",
+        "sla_breach",
+        "inactivity",
+        "life_event",
+        "unknown",
     ];
 
     for cohort in &cohorts {
         assert!(
             valid_drivers.contains(&cohort.primary_driver.as_str()),
-            "Unexpected primary driver: '{}'", cohort.primary_driver
+            "Unexpected primary driver: '{}'",
+            cohort.primary_driver
         );
     }
 }
@@ -106,7 +128,8 @@ fn retention_offer_reduces_churn_risk() {
     for s in &scores {
         assert!(
             s.retention_offer_bonus <= 0.0,
-            "retention_offer_bonus={} should be ≤ 0", s.retention_offer_bonus
+            "retention_offer_bonus={} should be ≤ 0",
+            s.retention_offer_bonus
         );
     }
 }
@@ -127,13 +150,22 @@ fn determinism_holds_with_churn_model() {
 
     let scores_a = engine_a.store_churn_score_count(&run_a).unwrap();
     let scores_b = engine_b.store_churn_score_count(&run_b).unwrap();
-    assert_eq!(scores_a, scores_b, "Score count diverged: {scores_a} vs {scores_b}");
+    assert_eq!(
+        scores_a, scores_b,
+        "Score count diverged: {scores_a} vs {scores_b}"
+    );
 
     let churned_a = engine_a.store_churned_count(&run_a).unwrap();
     let churned_b = engine_b.store_churned_count(&run_b).unwrap();
-    assert_eq!(churned_a, churned_b, "Churned count diverged: {churned_a} vs {churned_b}");
+    assert_eq!(
+        churned_a, churned_b,
+        "Churned count diverged: {churned_a} vs {churned_b}"
+    );
 
     let life_a = engine_a.store_life_event_count(&run_a).unwrap();
     let life_b = engine_b.store_life_event_count(&run_b).unwrap();
-    assert_eq!(life_a, life_b, "Life event count diverged: {life_a} vs {life_b}");
+    assert_eq!(
+        life_a, life_b,
+        "Life event count diverged: {life_a} vs {life_b}"
+    );
 }

@@ -1,0 +1,63 @@
+{
+  "cost_allocation_model": {
+    "acquisition_cost_per_customer": {
+      "mass_market":    85.0,
+      "mid_tier":      150.0,
+      "student":        45.0,
+      "small_business": 320.0
+    },
+    "monthly_servicing_cost_per_customer": {
+      "mass_market":    4.50,
+      "mid_tier":       8.00,
+      "student":        3.00,
+      "small_business": 18.00
+    },
+    "complaint_handling_cost_per_complaint": {
+      "standard": 50.0,
+      "high":    120.0,
+      "urgent":  280.0
+    },
+    "churn_replacement_cost_multiplier": 1.35,
+    "retention_offer_cost_fully_allocated": true
+  },
+
+  "clv_model": {
+    "discount_rate_annual": 0.12,
+    "projection_horizon_years": 5,
+    "cross_sell_assumptions": {
+      "student_to_mid_tier_probability": 0.25,
+      "student_to_mid_tier_tenure_ticks": 1460,
+      "mass_market_to_mid_tier_probability": 0.08,
+      "mid_tier_product_depth_increase": 1.4
+    },
+    "default_tenure_assumptions": {
+      "mass_market":    730,
+      "mid_tier":      1825,
+      "student":       1095,
+      "small_business": 1460
+    }
+  },
+
+  "profitability_metrics": {
+    "target_customer_margin": {
+      "mass_market":    0.18,
+      "mid_tier":       0.35,
+      "student":        0.05,
+      "small_business": 0.42
+    },
+    "warning_threshold_below_target": -0.10,
+    "cross_subsidy_flag_threshold": 0.20
+  },
+
+  "revenue_attribution": {
+    "interchange_revenue_per_swipe": 0.015,
+    "average_card_swipes_per_month": {
+      "mass_market":    18,
+      "mid_tier":       32,
+      "student":        12,
+      "small_business": 85
+    },
+    "nii_attribution_method": "balance_share",
+    "fee_attribution_method": "direct"
+  }
+}

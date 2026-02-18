@@ -24,60 +24,62 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct OfferSubsystem {
-    run_id:        RunId,
-    config:        SimConfig,
-    store:         SimStore,
-    initialized:   bool,
+    run_id: RunId,
+    config: SimConfig,
+    store: SimStore,
+    initialized: bool,
     active_offers: HashMap<String, OfferConfig>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CustomerOfferRecord {
-    pub customer_id:       String,
-    pub offer_id:          String,
-    pub tick_offered:      Tick,
-    pub tick_accepted:     Option<Tick>,
-    pub tick_completed:    Option<Tick>,
-    pub tick_paid:         Option<Tick>,
-    pub status:            String,
-    pub bonus_amount:      f64,
-    pub bonus_paid:        f64,
-    pub requirements_met:  bool,
-    pub cumulative_dd:     f64,
-    pub min_balance_days:  u64,
-    pub ticks_in_offer:    u64,
+    pub customer_id: String,
+    pub offer_id: String,
+    pub tick_offered: Tick,
+    pub tick_accepted: Option<Tick>,
+    pub tick_completed: Option<Tick>,
+    pub tick_paid: Option<Tick>,
+    pub status: String,
+    pub bonus_amount: f64,
+    pub bonus_paid: f64,
+    pub requirements_met: bool,
+    pub cumulative_dd: f64,
+    pub min_balance_days: u64,
+    pub ticks_in_offer: u64,
     pub bonus_seeker_flag: bool,
-    pub velocity_flag:     bool,
+    pub velocity_flag: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct CustomerSnapshot {
-    pub segment:       String,
-    pub churn_risk:    f64,
-    pub open_tick:     Tick,
+    pub segment: String,
+    pub churn_risk: f64,
+    pub open_tick: Tick,
     pub product_count: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct CustomerActivity {
-    pub balance:               f64,
-    pub has_direct_deposit:    bool,
+    pub balance: f64,
+    pub has_direct_deposit: bool,
     pub direct_deposit_amount: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct OfferPerformance {
-    pub offered_count:      i64,
-    pub accepted_count:     i64,
-    pub completed_count:    i64,
-    pub expired_count:      i64,
-    pub total_bonus_paid:   f64,
+    pub offered_count: i64,
+    pub accepted_count: i64,
+    pub completed_count: i64,
+    pub expired_count: i64,
+    pub total_bonus_paid: f64,
     pub bonus_seeker_count: i64,
 }
 
 impl OfferSubsystem {
     pub fn new(run_id: RunId, config: SimConfig, store: SimStore) -> Self {
-        let active_offers = config.offers.iter()
+        let active_offers = config
+            .offers
+            .iter()
             .filter(|(_, o)| o.active)
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
@@ -122,11 +124,18 @@ impl OfferSubsystem {
 
         // Segment check
         if !offer.eligibility.target_segments.is_empty()
-            && !offer.eligibility.target_segments.contains(&customer.segment)
+            && !offer
+                .eligibility
+                .target_segments
+                .contains(&customer.segment)
         {
             return false;
         }
-        if offer.eligibility.exclude_segments.contains(&customer.segment) {
+        if offer
+            .eligibility
+            .exclude_segments
+            .contains(&customer.segment)
+        {
             return false;
         }
 
@@ -171,7 +180,9 @@ impl OfferSubsystem {
         };
 
         // Collect eligible active offers
-        let mut eligible: Vec<&OfferConfig> = self.active_offers.values()
+        let mut eligible: Vec<&OfferConfig> = self
+            .active_offers
+            .values()
             .filter(|o| self.is_customer_eligible(&customer, o, tick))
             .collect();
 
@@ -187,35 +198,37 @@ impl OfferSubsystem {
         let bonus_seeker_flag = rng.chance(offer.fraud_risk.bonus_seeker_probability);
 
         let record = CustomerOfferRecord {
-            customer_id:      customer_id.to_string(),
-            offer_id:         offer.offer_id.clone(),
-            tick_offered:     tick,
-            tick_accepted:    Some(tick), // auto-accept
-            tick_completed:   None,
-            tick_paid:        None,
-            status:           "in_progress".to_string(),
-            bonus_amount:     offer.bonus_amount,
-            bonus_paid:       0.0,
+            customer_id: customer_id.to_string(),
+            offer_id: offer.offer_id.clone(),
+            tick_offered: tick,
+            tick_accepted: Some(tick), // auto-accept
+            tick_completed: None,
+            tick_paid: None,
+            status: "in_progress".to_string(),
+            bonus_amount: offer.bonus_amount,
+            bonus_paid: 0.0,
             requirements_met: false,
-            cumulative_dd:    0.0,
+            cumulative_dd: 0.0,
             min_balance_days: 0,
-            ticks_in_offer:   0,
+            ticks_in_offer: 0,
             bonus_seeker_flag,
-            velocity_flag:    false,
+            velocity_flag: false,
         };
 
         self.store.insert_customer_offer(&self.run_id, &record)?;
 
         out.push(SimEvent::OfferMatched {
             tick,
-            customer_id:  customer_id.to_string(),
-            offer_id:     offer.offer_id.clone(),
+            customer_id: customer_id.to_string(),
+            offer_id: offer.offer_id.clone(),
             bonus_amount: offer.bonus_amount,
         });
 
         log::info!(
             "tick={tick} offer: matched {} to {} (bonus_seeker={})",
-            customer_id, offer.offer_id, bonus_seeker_flag
+            customer_id,
+            offer.offer_id,
+            bonus_seeker_flag
         );
 
         Ok(out)
@@ -235,13 +248,14 @@ impl OfferSubsystem {
             rec.ticks_in_offer += 7; // we run every 7 ticks
 
             // Get customer activity
-            let activity = self.store.get_customer_activity(
-                &self.run_id, &rec.customer_id, tick,
-            ).unwrap_or(CustomerActivity {
-                balance: 0.0,
-                has_direct_deposit: false,
-                direct_deposit_amount: 0.0,
-            });
+            let activity = self
+                .store
+                .get_customer_activity(&self.run_id, &rec.customer_id, tick)
+                .unwrap_or(CustomerActivity {
+                    balance: 0.0,
+                    has_direct_deposit: false,
+                    direct_deposit_amount: 0.0,
+                });
 
             // Accumulate direct deposits
             rec.cumulative_dd += activity.direct_deposit_amount;
@@ -265,11 +279,14 @@ impl OfferSubsystem {
 
                 // Pay bonus if applicable
                 if offer_cfg.cost_model.bonus_paid_on_completion && rec.bonus_amount > 0.0 {
-                    if let Ok(acct) = self.store.customer_primary_account(
-                        &self.run_id, &rec.customer_id,
-                    ) {
+                    if let Ok(acct) = self
+                        .store
+                        .customer_primary_account(&self.run_id, &rec.customer_id)
+                    {
                         let _ = self.store.update_account_balance(
-                            &self.run_id, &acct, rec.bonus_amount,
+                            &self.run_id,
+                            &acct,
+                            rec.bonus_amount,
                         );
                         rec.bonus_paid = rec.bonus_amount;
                         rec.tick_paid = Some(tick);
@@ -277,15 +294,17 @@ impl OfferSubsystem {
 
                         out.push(SimEvent::OfferBonusPaid {
                             tick,
-                            customer_id:       rec.customer_id.clone(),
-                            offer_id:          rec.offer_id.clone(),
-                            amount:            rec.bonus_amount,
+                            customer_id: rec.customer_id.clone(),
+                            offer_id: rec.offer_id.clone(),
+                            amount: rec.bonus_amount,
                             bonus_seeker_flag: rec.bonus_seeker_flag,
                         });
 
                         log::info!(
                             "tick={tick} offer: bonus ${:.0} paid to {} (seeker={})",
-                            rec.bonus_amount, rec.customer_id, rec.bonus_seeker_flag
+                            rec.bonus_amount,
+                            rec.customer_id,
+                            rec.bonus_seeker_flag
                         );
                     }
                 }
@@ -295,7 +314,7 @@ impl OfferSubsystem {
                 out.push(SimEvent::OfferCompleted {
                     tick,
                     customer_id: rec.customer_id.clone(),
-                    offer_id:    rec.offer_id.clone(),
+                    offer_id: rec.offer_id.clone(),
                 });
             } else if rec.ticks_in_offer > offer_cfg.requirements.duration_ticks + 30 {
                 // Expired (grace period of 30 ticks)
@@ -312,7 +331,9 @@ impl OfferSubsystem {
 }
 
 impl SimSubsystem for OfferSubsystem {
-    fn name(&self) -> &'static str { "offer" }
+    fn name(&self) -> &'static str {
+        "offer"
+    }
 
     fn update(
         &mut self,
@@ -344,18 +365,21 @@ impl SimSubsystem for OfferSubsystem {
         }
 
         // Every 7 ticks: update progress on in-progress offers
-        if tick % 7 == 0 {
+        if tick.is_multiple_of(7) {
             let progress_events = self.process_in_progress_offers(tick)?;
             out.extend(progress_events);
         }
 
         // Every 30 ticks: compute and save offer performance metrics
-        if tick % 30 == 0 {
+        if tick.is_multiple_of(30) {
             for offer_id in self.active_offers.keys().cloned().collect::<Vec<_>>() {
-                if let Ok(perf) = self.store.compute_offer_performance(&self.run_id, &offer_id) {
-                    let _ = self.store.save_offer_performance(
-                        &self.run_id, &offer_id, tick, &perf,
-                    );
+                if let Ok(perf) = self
+                    .store
+                    .compute_offer_performance(&self.run_id, &offer_id)
+                {
+                    let _ = self
+                        .store
+                        .save_offer_performance(&self.run_id, &offer_id, tick, &perf);
                 }
             }
         }
@@ -363,5 +387,7 @@ impl SimSubsystem for OfferSubsystem {
         Ok(out)
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

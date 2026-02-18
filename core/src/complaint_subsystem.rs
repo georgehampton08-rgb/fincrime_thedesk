@@ -20,26 +20,26 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintRecord {
-    pub complaint_id:    String,
-    pub customer_id:     String,
-    pub account_id:      Option<String>,
-    pub tick_opened:     Tick,
-    pub tick_closed:     Option<Tick>,
-    pub product:         String,
-    pub issue:           String,
-    pub priority:        String,
-    pub status:          String,
-    pub sla_due_tick:    Tick,
-    pub sla_breached:    bool,
+    pub complaint_id: String,
+    pub customer_id: String,
+    pub account_id: Option<String>,
+    pub tick_opened: Tick,
+    pub tick_closed: Option<Tick>,
+    pub product: String,
+    pub issue: String,
+    pub priority: String,
+    pub status: String,
+    pub sla_due_tick: Tick,
+    pub sla_breached: bool,
     pub resolution_code: Option<String>,
     pub amount_refunded: f64,
-    pub udaap_flag:      bool,
+    pub udaap_flag: bool,
 }
 
 pub struct ComplaintSubsystem {
-    run_id:           RunId,
-    store:            SimStore,
-    trigger_map:      HashMap<String, Vec<ComplaintTrigger>>,
+    run_id: RunId,
+    store: SimStore,
+    trigger_map: HashMap<String, Vec<ComplaintTrigger>>,
     // Retained for Phase 1E player-command wiring.
     #[allow(dead_code)]
     resolution_codes: HashMap<String, ResolutionCode>,
@@ -49,12 +49,18 @@ impl ComplaintSubsystem {
     pub fn new(run_id: RunId, config: SimConfig, store: SimStore) -> Self {
         let mut trigger_map: HashMap<String, Vec<ComplaintTrigger>> = HashMap::new();
         for trigger in config.complaint_triggers {
-            trigger_map.entry(trigger.event_type.clone())
+            trigger_map
+                .entry(trigger.event_type.clone())
                 .or_default()
                 .push(trigger);
         }
         let resolution_codes = config.resolution_codes;
-        Self { run_id, store, trigger_map, resolution_codes }
+        Self {
+            run_id,
+            store,
+            trigger_map,
+            resolution_codes,
+        }
     }
 
     /// Returns a cloned trigger if a complaint should fire for this event.
@@ -99,19 +105,19 @@ impl ComplaintSubsystem {
     ) -> ComplaintRecord {
         ComplaintRecord {
             complaint_id,
-            customer_id:     customer_id.to_string(),
-            account_id:      account_id.map(String::from),
-            tick_opened:     tick,
-            tick_closed:     None,
-            product:         product.to_string(),
-            issue:           trigger.issue_category.clone(),
-            priority:        trigger.priority.clone(),
-            status:          "open".to_string(),
-            sla_due_tick:    tick + trigger.sla_resolve_days,
-            sla_breached:    false,
+            customer_id: customer_id.to_string(),
+            account_id: account_id.map(String::from),
+            tick_opened: tick,
+            tick_closed: None,
+            product: product.to_string(),
+            issue: trigger.issue_category.clone(),
+            priority: trigger.priority.clone(),
+            status: "open".to_string(),
+            sla_due_tick: tick + trigger.sla_resolve_days,
+            sla_breached: false,
             resolution_code: None,
             amount_refunded: 0.0,
-            udaap_flag:      trigger.issue_category == "fee_dispute",
+            udaap_flag: trigger.issue_category == "fee_dispute",
         }
     }
 
@@ -119,14 +125,17 @@ impl ComplaintSubsystem {
         let mut events = Vec::new();
         for complaint in self.store.open_complaints(&self.run_id)? {
             if !complaint.sla_breached && tick >= complaint.sla_due_tick {
-                self.store.mark_complaint_sla_breach(&self.run_id, &complaint.complaint_id)?;
+                self.store
+                    .mark_complaint_sla_breach(&self.run_id, &complaint.complaint_id)?;
                 self.store.update_customer_satisfaction(
-                    &self.run_id, &complaint.customer_id, -0.15,
+                    &self.run_id,
+                    &complaint.customer_id,
+                    -0.15,
                 )?;
                 events.push(SimEvent::SLABreached {
                     tick,
                     complaint_id: complaint.complaint_id.clone(),
-                    customer_id:  complaint.customer_id.clone(),
+                    customer_id: complaint.customer_id.clone(),
                     days_overdue: (tick.saturating_sub(complaint.sla_due_tick)) as i32,
                 });
             }
@@ -149,39 +158,53 @@ impl ComplaintSubsystem {
             return Ok(vec![]);
         }
 
-        let resolution = self.resolution_codes.get(resolution_code)
+        let resolution = self
+            .resolution_codes
+            .get(resolution_code)
             .ok_or_else(|| anyhow::anyhow!("Unknown resolution code: {resolution_code}"))?;
 
         let refund = resolution.avg_amount_refunded;
-        self.store.close_complaint(&self.run_id, complaint_id, tick, resolution_code, refund)?;
+        self.store
+            .close_complaint(&self.run_id, complaint_id, tick, resolution_code, refund)?;
 
         self.store.update_customer_satisfaction(
-            &self.run_id, &complaint.customer_id, resolution.satisfaction_delta,
+            &self.run_id,
+            &complaint.customer_id,
+            resolution.satisfaction_delta,
         )?;
         self.store.adjust_customer_churn_risk(
-            &self.run_id, &complaint.customer_id, resolution.churn_risk_delta,
+            &self.run_id,
+            &complaint.customer_id,
+            resolution.churn_risk_delta,
         )?;
 
         let interaction_id = format!("int-{:016x}", rng.next_u64());
         self.store.insert_interaction(
-            &self.run_id, &interaction_id, &complaint.customer_id, tick,
-            "system", "complaint_resolution",
-            Some(complaint_id), Some(resolution_code),
+            &self.run_id,
+            &interaction_id,
+            &complaint.customer_id,
+            tick,
+            "system",
+            "complaint_resolution",
+            Some(complaint_id),
+            Some(resolution_code),
             resolution.satisfaction_delta,
         )?;
 
         Ok(vec![SimEvent::ComplaintResolved {
             tick,
-            complaint_id:       complaint_id.to_string(),
-            customer_id:        complaint.customer_id.clone(),
-            resolution_code:    resolution_code.to_string(),
+            complaint_id: complaint_id.to_string(),
+            customer_id: complaint.customer_id.clone(),
+            resolution_code: resolution_code.to_string(),
             satisfaction_delta: resolution.satisfaction_delta,
         }])
     }
 }
 
 impl SimSubsystem for ComplaintSubsystem {
-    fn name(&self) -> &'static str { "complaint" }
+    fn name(&self) -> &'static str {
+        "complaint"
+    }
 
     fn update(
         &mut self,
@@ -193,14 +216,24 @@ impl SimSubsystem for ComplaintSubsystem {
 
         // 1. Generate complaints from triggering events.
         for event in events_in {
-            let Some(trigger) = self.should_trigger_complaint(event, rng) else { continue };
+            let Some(trigger) = self.should_trigger_complaint(event, rng) else {
+                continue;
+            };
 
             let (customer_id, account_id, product) = match event {
-                SimEvent::FeeCharged { customer_id, account_id, .. } => {
+                SimEvent::FeeCharged {
+                    customer_id,
+                    account_id,
+                    ..
+                } => {
                     let prod = self.store.account_product(&self.run_id, account_id)?;
                     (customer_id.clone(), Some(account_id.clone()), prod)
                 }
-                SimEvent::SLABreached { customer_id, complaint_id, .. } => {
+                SimEvent::SLABreached {
+                    customer_id,
+                    complaint_id,
+                    ..
+                } => {
                     let c = self.store.get_complaint(&self.run_id, complaint_id)?;
                     (customer_id.clone(), None, c.product)
                 }
@@ -218,15 +251,14 @@ impl SimSubsystem for ComplaintSubsystem {
             );
 
             self.store.insert_complaint(&self.run_id, &complaint)?;
-            self.store.update_customer_satisfaction(
-                &self.run_id, &customer_id, -0.03,
-            )?;
+            self.store
+                .update_customer_satisfaction(&self.run_id, &customer_id, -0.03)?;
 
             out_events.push(SimEvent::ComplaintFiled {
                 tick,
                 complaint_id: complaint.complaint_id,
                 customer_id,
-                issue:    trigger.issue_category,
+                issue: trigger.issue_category,
                 priority: trigger.priority,
             });
         }
@@ -246,16 +278,21 @@ impl SimSubsystem for ComplaintSubsystem {
         // 4. Periodic complaint aggregate (every 7 ticks).
         if tick.is_multiple_of(7) {
             let agg = self.store.compute_complaint_aggregate(&self.run_id, tick)?;
-            self.store.save_complaint_aggregate(&self.run_id, tick, &agg)?;
+            self.store
+                .save_complaint_aggregate(&self.run_id, tick, &agg)?;
             log::debug!(
                 "tick={tick} complaint: opened={} closed={} breached={} backlog={}",
-                agg.complaints_opened, agg.complaints_closed,
-                agg.sla_breaches, agg.backlog_count,
+                agg.complaints_opened,
+                agg.complaints_closed,
+                agg.sla_breaches,
+                agg.backlog_count,
             );
         }
 
         Ok(out_events)
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

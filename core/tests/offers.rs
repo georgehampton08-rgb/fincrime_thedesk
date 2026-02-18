@@ -18,7 +18,9 @@ fn new_customers_matched_to_eligible_offers() {
 
     engine.run_ticks(2).unwrap();
 
-    let matched = engine.store_matched_offer_count("offers-match-test").unwrap();
+    let matched = engine
+        .store_matched_offer_count("offers-match-test")
+        .unwrap();
     assert!(
         matched > 0,
         "Expected at least one offer to be matched; got {matched}"
@@ -36,7 +38,9 @@ fn offer_not_complete_before_duration() {
     // tick 55 the last update was at tick 49 (7×7=49 ticks_in_offer < 60).
     engine.run_ticks(55).unwrap();
 
-    let completed = engine.store_completed_offer_count("offers-no-complete-early").unwrap();
+    let completed = engine
+        .store_completed_offer_count("offers-no-complete-early")
+        .unwrap();
     assert_eq!(
         completed, 0,
         "Offers should not complete before duration of 60 ticks; got {completed}"
@@ -53,8 +57,12 @@ fn bonus_paid_on_completion() {
     // Customers with payroll should have cumulative_dd ≥ 500 and balance ≥ 100
     engine.run_ticks(100).unwrap();
 
-    let bonuses = engine.store_total_bonuses_paid("offers-bonus-paid").unwrap();
-    let completed = engine.store_completed_offer_count("offers-bonus-paid").unwrap();
+    let bonuses = engine
+        .store_total_bonuses_paid("offers-bonus-paid")
+        .unwrap();
+    let completed = engine
+        .store_completed_offer_count("offers-bonus-paid")
+        .unwrap();
 
     assert!(
         completed > 0,
@@ -75,8 +83,12 @@ fn bonus_seeker_flag_set_probabilistically() {
 
     engine.run_ticks(2).unwrap();
 
-    let matched = engine.store_matched_offer_count("offers-seeker-flag").unwrap();
-    let seekers = engine.store_bonus_seeker_count("offers-seeker-flag").unwrap();
+    let matched = engine
+        .store_matched_offer_count("offers-seeker-flag")
+        .unwrap();
+    let seekers = engine
+        .store_bonus_seeker_count("offers-seeker-flag")
+        .unwrap();
 
     assert!(
         matched > 0,
@@ -143,7 +155,10 @@ fn determinism_holds_with_offers() {
 
     let seekers_a = engine_a.store_bonus_seeker_count(&run_a).unwrap();
     let seekers_b = engine_b.store_bonus_seeker_count(&run_b).unwrap();
-    assert_eq!(seekers_a, seekers_b, "Bonus-seeker count diverged between runs");
+    assert_eq!(
+        seekers_a, seekers_b,
+        "Bonus-seeker count diverged between runs"
+    );
 
     let bonuses_a = engine_a.store_total_bonuses_paid(&run_a).unwrap();
     let bonuses_b = engine_b.store_total_bonuses_paid(&run_b).unwrap();

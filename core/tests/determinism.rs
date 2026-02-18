@@ -17,7 +17,8 @@ fn collect_event_log(engine: &SimEngine, run_id: &str) -> Vec<String> {
     // This is acceptable in tests — production code uses the engine API.
     (0..=engine.clock.current_tick)
         .flat_map(|tick| {
-            engine.store_events_for_tick(run_id, tick)
+            engine
+                .store_events_for_tick(run_id, tick)
                 .expect("read events")
                 .into_iter()
                 .map(|e| e.payload)
@@ -40,16 +41,15 @@ fn same_seed_produces_identical_event_logs() {
     let log_b = collect_event_log(&engine_b, &format!("det-test-{SEED}"));
 
     assert_eq!(
-        log_a.len(), log_b.len(),
+        log_a.len(),
+        log_b.len(),
         "Event log lengths differ: {} vs {}",
-        log_a.len(), log_b.len()
+        log_a.len(),
+        log_b.len()
     );
 
     for (i, (a, b)) in log_a.iter().zip(log_b.iter()).enumerate() {
-        assert_eq!(
-            a, b,
-            "Event log diverged at entry {i}:\n  A: {a}\n  B: {b}"
-        );
+        assert_eq!(a, b, "Event log diverged at entry {i}:\n  A: {a}\n  B: {b}");
     }
 }
 
@@ -67,7 +67,10 @@ fn different_seeds_produce_different_logs() {
     let log_b = collect_event_log(&engine_b, "det-test-99");
 
     let any_different = log_a.iter().zip(log_b.iter()).any(|(a, b)| a != b);
-    assert!(any_different, "Different seeds produced identical logs — seed is not being used");
+    assert!(
+        any_different,
+        "Different seeds produced identical logs — seed is not being used"
+    );
 }
 
 #[test]
@@ -78,20 +81,21 @@ fn macro_updates_on_quarterly_boundaries_only() {
 
     // Collect all events
     let macro_events: Vec<_> = (0u64..=91)
-        .flat_map(|tick| {
-            engine.store_events_for_tick(&run_id, tick).unwrap()
-        })
+        .flat_map(|tick| engine.store_events_for_tick(&run_id, tick).unwrap())
         .filter(|e| e.event_type == "macro_state_updated")
         .collect();
 
     // Should have exactly 1 macro event (at tick 90)
     assert_eq!(
-        macro_events.len(), 1,
+        macro_events.len(),
+        1,
         "Expected 1 macro update in 91 ticks, got {}",
         macro_events.len()
     );
-    assert_eq!(macro_events[0].tick, 90,
-        "Macro update should fire at tick 90");
+    assert_eq!(
+        macro_events[0].tick, 90,
+        "Macro update should fire at tick 90"
+    );
 }
 
 #[test]

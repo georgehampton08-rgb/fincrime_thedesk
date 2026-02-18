@@ -5,12 +5,7 @@
 //! in registration order, every tick.
 //! Execution order is fixed and documented in engine.rs.
 
-use crate::{
-    error::SimResult,
-    event::SimEvent,
-    rng::SubsystemRng,
-    types::Tick,
-};
+use crate::{error::SimResult, event::SimEvent, rng::SubsystemRng, types::Tick};
 use std::any::Any;
 
 /// The contract every subsystem must fulfill.

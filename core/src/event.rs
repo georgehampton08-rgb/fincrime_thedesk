@@ -13,9 +13,16 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SimEvent {
     // ── Engine events ──────────────────────────────
-    TickStarted    { tick: Tick },
-    TickCompleted  { tick: Tick },
-    RunInitialized { run_id: RunId, seed: u64 },
+    TickStarted {
+        tick: Tick,
+    },
+    TickCompleted {
+        tick: Tick,
+    },
+    RunInitialized {
+        run_id: RunId,
+        seed: u64,
+    },
 
     // ── Macro events ───────────────────────────────
     MacroStateUpdated {
@@ -34,102 +41,102 @@ pub enum SimEvent {
 
     // ── Phase 1B: Customer and transaction events ──
     CustomerOnboarded {
-        tick:        Tick,
+        tick: Tick,
         customer_id: EntityId,
-        segment:     String,
-        account_id:  EntityId,
+        segment: String,
+        account_id: EntityId,
     },
     CustomerChurned {
-        tick:        Tick,
+        tick: Tick,
         customer_id: EntityId,
-        segment:     String,
-        churn_risk:  f64,
+        segment: String,
+        churn_risk: f64,
     },
     FeeCharged {
-        tick:        Tick,
+        tick: Tick,
         customer_id: EntityId,
-        account_id:  EntityId,
-        fee_type:    String,  // "overdraft" | "nsf" | "atm"
-        amount:      f64,
+        account_id: EntityId,
+        fee_type: String, // "overdraft" | "nsf" | "atm"
+        amount: f64,
     },
 
     // ── Phase 1C: Complaint and service events ─────
     ComplaintFiled {
-        tick:         Tick,
+        tick: Tick,
         complaint_id: EntityId,
-        customer_id:  EntityId,
-        issue:        String,
-        priority:     String,
+        customer_id: EntityId,
+        issue: String,
+        priority: String,
     },
     ComplaintResolved {
-        tick:               Tick,
-        complaint_id:       EntityId,
-        customer_id:        EntityId,
-        resolution_code:    String,
+        tick: Tick,
+        complaint_id: EntityId,
+        customer_id: EntityId,
+        resolution_code: String,
         satisfaction_delta: f64,
     },
     SLABreached {
-        tick:         Tick,
+        tick: Tick,
         complaint_id: EntityId,
-        customer_id:  EntityId,
+        customer_id: EntityId,
         days_overdue: i32,
     },
 
     // ── Phase 1D: Economics events ─────────────────────────────
     QuarterlyPnLComputed {
-        tick:             Tick,
-        period:           String,
-        gross_income:     f64,
-        pre_tax_profit:   f64,
-        nim:              f64,
+        tick: Tick,
+        period: String,
+        gross_income: f64,
+        pre_tax_profit: f64,
+        nim: f64,
         efficiency_ratio: f64,
     },
 
     // ── Phase 2.1: Pricing events ───────────────────────────────
     ProductFeeChanged {
-        tick:       Tick,
+        tick: Tick,
         product_id: EntityId,
-        fee_type:   String,
-        old_value:  f64,
-        new_value:  f64,
-        warning:    Option<String>,
+        fee_type: String,
+        old_value: f64,
+        new_value: f64,
+        warning: Option<String>,
     },
 
     FeeChangeRejected {
-        tick:       Tick,
+        tick: Tick,
         product_id: EntityId,
-        fee_type:   String,
-        reason:     String,
+        fee_type: String,
+        reason: String,
     },
 
     // ── Phase 2.2: Offer events ─────────────────────────────────
     OfferMatched {
-        tick:         Tick,
-        customer_id:  EntityId,
-        offer_id:     String,
+        tick: Tick,
+        customer_id: EntityId,
+        offer_id: String,
         bonus_amount: f64,
     },
 
     OfferCompleted {
-        tick:        Tick,
+        tick: Tick,
         customer_id: EntityId,
-        offer_id:    String,
+        offer_id: String,
     },
 
     OfferBonusPaid {
-        tick:              Tick,
-        customer_id:       EntityId,
-        offer_id:          String,
-        amount:            f64,
+        tick: Tick,
+        customer_id: EntityId,
+        offer_id: String,
+        amount: f64,
         bonus_seeker_flag: bool,
     },
 
     // ── Phase 2.3: Churn events ─────────────────────────────────
     LifeEventOccurred {
-        tick:        Tick,
+        tick: Tick,
         customer_id: EntityId,
-        event_type:  String,
-        duration:    Tick,
+        event_type: String,
+        duration: Tick,
     },
 }
 
@@ -145,10 +152,10 @@ pub enum EconomicPhase {
 impl EconomicPhase {
     pub fn fraud_multiplier(&self) -> f64 {
         match self {
-            Self::Expansion   => 1.0,
-            Self::Peak        => 1.1,
+            Self::Expansion => 1.0,
+            Self::Peak => 1.1,
             Self::Contraction => 1.35,
-            Self::Trough      => 1.6,
+            Self::Trough => 1.6,
         }
     }
 }
@@ -156,10 +163,10 @@ impl EconomicPhase {
 /// The event log entry as persisted to SQLite.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventLogEntry {
-    pub id:         Option<i64>,
-    pub run_id:     RunId,
-    pub tick:       Tick,
-    pub subsystem:  String,
+    pub id: Option<i64>,
+    pub run_id: RunId,
+    pub tick: Tick,
+    pub subsystem: String,
     pub event_type: String,
-    pub payload:    String, // JSON-serialized SimEvent
+    pub payload: String, // JSON-serialized SimEvent
 }

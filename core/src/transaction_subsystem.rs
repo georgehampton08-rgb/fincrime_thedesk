@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 pub struct TransactionSubsystem {
     run_id: RunId,
-    store:  SimStore,
+    store: SimStore,
 }
 
 impl TransactionSubsystem {
@@ -40,12 +40,17 @@ impl TransactionSubsystem {
             let amount = payroll_amount * jitter;
             let txn_id = Uuid::new_v4().to_string();
             self.store.insert_transaction(
-                &self.run_id, &txn_id, account_id, tick,
-                amount, "credit", "payroll", Some("payroll-employer"),
+                &self.run_id,
+                &txn_id,
+                account_id,
+                tick,
+                amount,
+                "credit",
+                "payroll",
+                Some("payroll-employer"),
             )?;
-            self.store.update_account_balance(
-                &self.run_id, account_id, amount
-            )?;
+            self.store
+                .update_account_balance(&self.run_id, account_id, amount)?;
         }
 
         // Daily transaction probability from monthly mean.
@@ -68,8 +73,11 @@ impl TransactionSubsystem {
                 rng.pareto(10.0, 1.4).min(2000.0)
             };
 
-            let category = if is_cash { "cash_withdrawal" }
-                           else { "purchase" };
+            let category = if is_cash {
+                "cash_withdrawal"
+            } else {
+                "purchase"
+            };
 
             // Counterparty: 80% recurring, 20% new
             let counterparty = if rng.chance(0.80) {
@@ -83,12 +91,17 @@ impl TransactionSubsystem {
 
             let txn_id = Uuid::new_v4().to_string();
             self.store.insert_transaction(
-                &self.run_id, &txn_id, account_id, tick,
-                amount, "debit", category, counterparty.as_deref(),
+                &self.run_id,
+                &txn_id,
+                account_id,
+                tick,
+                amount,
+                "debit",
+                category,
+                counterparty.as_deref(),
             )?;
-            self.store.update_account_balance(
-                &self.run_id, account_id, -amount
-            )?;
+            self.store
+                .update_account_balance(&self.run_id, account_id, -amount)?;
         }
 
         // Overdraft check: if balance < 0 after debits
@@ -97,18 +110,23 @@ impl TransactionSubsystem {
             let od_fee = 27.08;
             let fee_id = Uuid::new_v4().to_string();
             self.store.insert_transaction(
-                &self.run_id, &fee_id, account_id, tick,
-                od_fee, "debit", "overdraft_fee", None,
+                &self.run_id,
+                &fee_id,
+                account_id,
+                tick,
+                od_fee,
+                "debit",
+                "overdraft_fee",
+                None,
             )?;
-            self.store.update_account_balance(
-                &self.run_id, account_id, -od_fee
-            )?;
+            self.store
+                .update_account_balance(&self.run_id, account_id, -od_fee)?;
             events.push(SimEvent::FeeCharged {
                 tick,
                 customer_id: customer_id.to_string(),
-                account_id:  account_id.to_string(),
-                fee_type:    "overdraft".to_string(),
-                amount:      od_fee,
+                account_id: account_id.to_string(),
+                fee_type: "overdraft".to_string(),
+                amount: od_fee,
             });
         }
 
@@ -117,7 +135,9 @@ impl TransactionSubsystem {
 }
 
 impl SimSubsystem for TransactionSubsystem {
-    fn name(&self) -> &'static str { "transaction" }
+    fn name(&self) -> &'static str {
+        "transaction"
+    }
 
     fn update(
         &mut self,
@@ -129,7 +149,9 @@ impl SimSubsystem for TransactionSubsystem {
 
         // Skip tick 0 — customers are being onboarded this tick,
         // accounts aren't written yet when transaction runs.
-        if tick == 0 { return Ok(out_events); }
+        if tick == 0 {
+            return Ok(out_events);
+        }
 
         let accounts = self.store.active_accounts(&self.run_id)?;
 
@@ -154,11 +176,15 @@ impl SimSubsystem for TransactionSubsystem {
 
         log::debug!(
             "tick={tick} txn: {} txns, vol=${:.0}, fees=${:.2}",
-            agg.txn_count, agg.txn_volume, agg.fee_income
+            agg.txn_count,
+            agg.txn_volume,
+            agg.fee_income
         );
 
         Ok(out_events)
     }
 
-    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SimClock {
-    pub run_id:       RunId,
+    pub run_id: RunId,
     pub current_tick: Tick,
-    pub speed:        SimSpeed,
-    pub paused:       bool,
+    pub speed: SimSpeed,
+    pub paused: bool,
 }
 
 impl SimClock {
@@ -29,8 +29,12 @@ impl SimClock {
         self.current_tick
     }
 
-    pub fn pause(&mut self)  { self.paused = true;  }
-    pub fn resume(&mut self) { self.paused = false; }
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
+    pub fn resume(&mut self) {
+        self.paused = false;
+    }
 
     pub fn set_speed(&mut self, speed: SimSpeed) {
         self.speed = speed;
@@ -38,7 +42,7 @@ impl SimClock {
 
     pub fn ticks_per_real_second(&self) -> u32 {
         match self.speed {
-            SimSpeed::Normal      => 1,
+            SimSpeed::Normal => 1,
             SimSpeed::Accelerated => 7,
             SimSpeed::FastForward => 30,
         }
@@ -48,7 +52,7 @@ impl SimClock {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SimSpeed {
-    Normal,       // 1 tick/step  (1 day per ~3 real seconds)
-    Accelerated,  // 7 ticks/step (1 week per ~3 real seconds)
-    FastForward,  // 30 ticks/step (1 month per ~3 real seconds)
+    Normal,      // 1 tick/step  (1 day per ~3 real seconds)
+    Accelerated, // 7 ticks/step (1 week per ~3 real seconds)
+    FastForward, // 30 ticks/step (1 month per ~3 real seconds)
 }

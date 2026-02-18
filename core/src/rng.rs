@@ -78,8 +78,7 @@ impl RngBank {
     }
 
     pub fn for_subsystem(&self, slot: SubsystemSlot) -> SubsystemRng {
-        SubsystemRng::new(self.master_seed, slot as u64)
-            .with_name(slot.name())
+        SubsystemRng::new(self.master_seed, slot as u64).with_name(slot.name())
     }
 }
 
@@ -89,34 +88,34 @@ impl RngBank {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u64)]
 pub enum SubsystemSlot {
-    Macro       = 0,
-    Customer    = 1,
-    Account     = 2,
+    Macro = 0,
+    Customer = 1,
+    Account = 2,
     Transaction = 3,
-    Complaint   = 4,
-    Economics   = 5,
-    Fraud       = 6,
-    Regulatory  = 7,
-    Pricing     = 8,
-    Offer       = 9,
-    Churn       = 10,
+    Complaint = 4,
+    Economics = 5,
+    Fraud = 6,
+    Regulatory = 7,
+    Pricing = 8,
+    Offer = 9,
+    Churn = 10,
     // Add new subsystems here — append only.
 }
 
 impl SubsystemSlot {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Macro       => "macro",
-            Self::Customer    => "customer",
-            Self::Account     => "account",
+            Self::Macro => "macro",
+            Self::Customer => "customer",
+            Self::Account => "account",
             Self::Transaction => "transaction",
-            Self::Complaint   => "complaint",
-            Self::Economics   => "economics",
-            Self::Fraud       => "fraud",
-            Self::Regulatory  => "regulatory",
-            Self::Pricing     => "pricing",
-            Self::Offer       => "offer",
-            Self::Churn       => "churn",
+            Self::Complaint => "complaint",
+            Self::Economics => "economics",
+            Self::Fraud => "fraud",
+            Self::Regulatory => "regulatory",
+            Self::Pricing => "pricing",
+            Self::Offer => "offer",
+            Self::Churn => "churn",
         }
     }
 }
