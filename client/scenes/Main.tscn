@@ -1,0 +1,262 @@
+[gd_scene load_steps=6 format=3 uid="uid://b8jkk8c6d4q2w"]
+
+[ext_resource type="Script" path="res://scripts/Main.cs" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://customers_view" path="res://scenes/CustomersView.tscn" id="2_customers"]
+[ext_resource type="PackedScene" uid="uid://complaints_view" path="res://scenes/ComplaintsView.tscn" id="3_complaints"]
+[ext_resource type="PackedScene" uid="uid://products_view" path="res://scenes/ProductsView.tscn" id="4_products"]
+[ext_resource type="PackedScene" uid="uid://pnl_report" path="res://scenes/PnLReport.tscn" id="5_pnl"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.05, 1)
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 50.0
+grow_horizontal = 2
+theme_override_constants/separation = 20
+
+[node name="TitleLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+text = "FINCRIME: THE DESK"
+
+[node name="VSeparator" type="VSeparator" parent="TopBar"]
+layout_mode = 2
+
+[node name="NavButtons" type="HBoxContainer" parent="TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BtnOverview" type="Button" parent="TopBar/NavButtons"]
+layout_mode = 2
+text = "OVERVIEW"
+
+[node name="BtnCustomers" type="Button" parent="TopBar/NavButtons"]
+layout_mode = 2
+text = "CUSTOMERS"
+
+[node name="BtnComplaints" type="Button" parent="TopBar/NavButtons"]
+layout_mode = 2
+text = "COMPLAINTS"
+
+[node name="BtnProducts" type="Button" parent="TopBar/NavButtons"]
+layout_mode = 2
+text = "PRODUCTS"
+
+[node name="BtnPnL" type="Button" parent="TopBar/NavButtons"]
+layout_mode = 2
+text = "P&L REPORT"
+
+[node name="VSeparator2" type="VSeparator" parent="TopBar"]
+layout_mode = 2
+
+[node name="TickLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+text = "Tick: 0"
+
+[node name="Spacer" type="Control" parent="TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PauseButton" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "PAUSE"
+
+[node name="ContentArea" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 60.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Overview" type="Control" parent="ContentArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="KPIGrid" type="GridContainer" parent="ContentArea/Overview"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -200.0
+offset_right = 400.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+columns = 3
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 20
+
+[node name="Panel1" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel1"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel1/VBox"]
+layout_mode = 2
+text = "Active Customers"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel1/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="Panel2" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel2"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel2/VBox"]
+layout_mode = 2
+text = "Churned Customers"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel2/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="Panel3" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel3"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel3/VBox"]
+layout_mode = 2
+text = "Open Complaints"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel3/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="Panel4" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel4"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel4/VBox"]
+layout_mode = 2
+text = "SLA Breaches"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel4/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="Panel5" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel5"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel5/VBox"]
+layout_mode = 2
+text = "NIM"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel5/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="Panel6" type="PanelContainer" parent="ContentArea/Overview/KPIGrid"]
+custom_minimum_size = Vector2(250, 120)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/Overview/KPIGrid/Panel6"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="ContentArea/Overview/KPIGrid/Panel6/VBox"]
+layout_mode = 2
+text = "Efficiency Ratio"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="ContentArea/Overview/KPIGrid/Panel6/VBox"]
+layout_mode = 2
+text = "---"
+horizontal_alignment = 1
+
+[node name="CustomersView" parent="ContentArea" instance=ExtResource("2_customers")]
+visible = false
+layout_mode = 1
+
+[node name="ComplaintsView" parent="ContentArea" instance=ExtResource("3_complaints")]
+visible = false
+layout_mode = 1
+
+[node name="ProductsView" parent="ContentArea" instance=ExtResource("4_products")]
+visible = false
+layout_mode = 1
+
+[node name="PnLReport" parent="ContentArea" instance=ExtResource("5_pnl")]
+visible = false
+layout_mode = 1
+
+[node name="StatusPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Label" type="Label" parent="StatusPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Ready"
+vertical_alignment = 1

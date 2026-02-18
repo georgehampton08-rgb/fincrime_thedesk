@@ -84,6 +84,23 @@ pub enum SimEvent {
         nim:              f64,
         efficiency_ratio: f64,
     },
+
+    // ── Phase 2.1: Pricing events ───────────────────────────────
+    ProductFeeChanged {
+        tick:       Tick,
+        product_id: EntityId,
+        fee_type:   String,
+        old_value:  f64,
+        new_value:  f64,
+        warning:    Option<String>,
+    },
+
+    FeeChangeRejected {
+        tick:       Tick,
+        product_id: EntityId,
+        fee_type:   String,
+        reason:     String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -17,8 +17,12 @@ pub enum PlayerCommand {
         resolution_code: String,
     },
 
-    // ── Phase 1D+ ─────────────────────────────────
-    // SetProductFee { product_id: String, fee_type: String, amount: f64 },
+    // ── Phase 2.1 ─────────────────────────────────
+    SetProductFee {
+        product_id: String,
+        fee_type:   String,  // "monthly_fee" | "overdraft_fee" | "nsf_fee" | "atm_fee" | "wire_fee"
+        new_value:  f64,
+    },
 
     // ── Phase 2+ ──────────────────────────────────
     // SetRiskAppetite { parameter: String, value: f64 },

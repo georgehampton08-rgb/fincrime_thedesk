@@ -3,7 +3,7 @@
 //! RULE: Only store.rs talks to the database.
 //! Subsystems call store methods — they never execute SQL directly.
 
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use crate::{
     error::SimResult,
     event::EventLogEntry,
@@ -53,6 +53,7 @@ impl SimStore {
         self.conn.execute_batch(include_str!("../../migrations/003_customers.sql"))?;
         self.conn.execute_batch(include_str!("../../migrations/004_complaints.sql"))?;
         self.conn.execute_batch(include_str!("../../migrations/005_economics.sql"))?;
+        self.conn.execute_batch(include_str!("../../migrations/006_pricing.sql"))?;
         Ok(())
     }
 
@@ -773,6 +774,232 @@ impl SimStore {
         )?;
         Ok(sum)
     }
+
+    // ── Product State ──────────────────────────────────────────
+
+    pub fn insert_product_state(
+        &self,
+        run_id: &str,
+        state: &crate::pricing_subsystem::ProductState,
+        tick: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO product_state (
+                run_id, product_id,
+                monthly_fee, overdraft_fee, nsf_fee, atm_fee, wire_fee,
+                interest_rate, last_modified_tick
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                run_id,
+                state.product_id,
+                state.monthly_fee,
+                state.overdraft_fee,
+                state.nsf_fee,
+                state.atm_fee,
+                state.wire_fee,
+                state.interest_rate,
+                tick as i64,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_product_fee(
+        &self,
+        run_id: &str,
+        product_id: &str,
+        fee_type: &str,
+        new_value: f64,
+        tick: Tick,
+    ) -> SimResult<()> {
+        let column = match fee_type {
+            "monthly_fee"   => "monthly_fee",
+            "overdraft_fee" => "overdraft_fee",
+            "nsf_fee"       => "nsf_fee",
+            "atm_fee"       => "atm_fee",
+            "wire_fee"      => "wire_fee",
+            _ => return Err(anyhow::anyhow!("Invalid fee type: {fee_type}").into()),
+        };
+
+        let sql = format!(
+            "UPDATE product_state
+             SET {} = ?1, last_modified_tick = ?2
+             WHERE run_id = ?3 AND product_id = ?4",
+            column
+        );
+
+        self.conn.execute(&sql, params![new_value, tick as i64, run_id, product_id])?;
+        Ok(())
+    }
+
+    pub fn get_product_state(
+        &self,
+        run_id: &str,
+        product_id: &str,
+    ) -> SimResult<crate::pricing_subsystem::ProductState> {
+        self.conn.query_row(
+            "SELECT product_id, monthly_fee, overdraft_fee, nsf_fee,
+                    atm_fee, wire_fee, interest_rate
+             FROM product_state
+             WHERE run_id = ?1 AND product_id = ?2",
+            params![run_id, product_id],
+            |row| Ok(crate::pricing_subsystem::ProductState {
+                product_id:    row.get(0)?,
+                monthly_fee:   row.get(1)?,
+                overdraft_fee: row.get(2)?,
+                nsf_fee:       row.get(3)?,
+                atm_fee:       row.get(4)?,
+                wire_fee:      row.get(5)?,
+                interest_rate: row.get(6)?,
+            }),
+        ).map_err(Into::into)
+    }
+
+    // ── Fee Change Log ─────────────────────────────────────────
+
+    pub fn log_fee_change(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        product_id: &str,
+        fee_type: &str,
+        old_value: f64,
+        new_value: f64,
+        player_initiated: bool,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO fee_change_log (
+                run_id, tick, product_id, fee_type,
+                old_value, new_value, player_initiated
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                run_id,
+                tick as i64,
+                product_id,
+                fee_type,
+                old_value,
+                new_value,
+                if player_initiated { 1i64 } else { 0i64 },
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn fee_change_history(
+        &self,
+        run_id: &str,
+        product_id: &str,
+        limit: usize,
+    ) -> SimResult<Vec<FeeChangeRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT tick, fee_type, old_value, new_value, player_initiated
+             FROM fee_change_log
+             WHERE run_id = ?1 AND product_id = ?2
+             ORDER BY tick DESC
+             LIMIT ?3"
+        )?;
+
+        let records = stmt.query_map(
+            params![run_id, product_id, limit as i64],
+            |row| Ok(FeeChangeRecord {
+                tick:             row.get::<_, i64>(0)? as u64,
+                fee_type:         row.get(1)?,
+                old_value:        row.get(2)?,
+                new_value:        row.get(3)?,
+                player_initiated: row.get::<_, i64>(4)? != 0,
+            }),
+        )?.collect::<Result<Vec<_>, _>>()?;
+
+        Ok(records)
+    }
+
+    // ── Regulatory Score ───────────────────────────────────────
+
+    pub fn init_regulatory_score(
+        &self,
+        run_id: &str,
+        tick: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO regulatory_score (run_id, udaap_risk_score, last_updated_tick)
+             VALUES (?1, 0.0, ?2)",
+            params![run_id, tick as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn adjust_udaap_score(
+        &self,
+        run_id: &str,
+        delta: f64,
+        tick: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE regulatory_score
+             SET udaap_risk_score = udaap_risk_score + ?1,
+                 last_updated_tick = ?2
+             WHERE run_id = ?3",
+            params![delta, tick as i64, run_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_udaap_score(&self, run_id: &str) -> SimResult<f64> {
+        self.conn.query_row(
+            "SELECT udaap_risk_score FROM regulatory_score WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        ).map_err(Into::into)
+    }
+
+    // ── Player Command Storage ────────────────────────────────
+
+    pub fn store_player_command(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        command: &crate::command::PlayerCommand,
+    ) -> SimResult<i64> {
+        let cmd_type = match command {
+            crate::command::PlayerCommand::Pause           => "pause",
+            crate::command::PlayerCommand::Resume          => "resume",
+            crate::command::PlayerCommand::SetSpeed { .. } => "set_speed",
+            crate::command::PlayerCommand::CloseComplaint { .. } => "close_complaint",
+            crate::command::PlayerCommand::SetProductFee { .. }  => "set_product_fee",
+        };
+
+        let payload = serde_json::to_string(command)?;
+
+        self.conn.execute(
+            "INSERT INTO player_command (run_id, tick, cmd_type, payload)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![run_id, tick as i64, cmd_type, payload],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn get_player_command(
+        &self,
+        run_id: &str,
+        command_id: &str,
+    ) -> SimResult<Option<crate::command::PlayerCommand>> {
+        let id: i64 = command_id.parse()
+            .map_err(|_| anyhow::anyhow!("Invalid command_id: {command_id}"))?;
+
+        let payload: Option<String> = self.conn.query_row(
+            "SELECT payload FROM player_command WHERE id = ?1 AND run_id = ?2",
+            params![id, run_id],
+            |row| row.get(0),
+        ).optional()?;
+
+        match payload {
+            Some(p) => {
+                let cmd = serde_json::from_str(&p)?;
+                Ok(Some(cmd))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -802,6 +1029,15 @@ pub struct ComplaintAggregate {
     pub sla_breaches:      i64,
     pub avg_age_days:      f64,
     pub backlog_count:     i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct FeeChangeRecord {
+    pub tick:             Tick,
+    pub fee_type:         String,
+    pub old_value:        f64,
+    pub new_value:        f64,
+    pub player_initiated: bool,
 }
 
 /// Row mapper for the complaint table — shared by several query methods.

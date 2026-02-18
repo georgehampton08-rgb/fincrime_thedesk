@@ -80,6 +80,30 @@ struct ComplaintConfigFile {
     resolution_codes: Vec<ResolutionCode>,
 }
 
+// ── Phase 2.1: Fee constraints ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeeConstraint {
+    pub fee_type:            String,
+    pub min_value:           f64,
+    pub max_value:           f64,
+    pub soft_limit:          f64,
+    pub soft_limit_warning:  String,
+    pub hard_limit_reason:   String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeeImpactFormula {
+    #[serde(flatten)]
+    pub parameters: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FeeConstraintsFile {
+    fee_types:       Vec<FeeConstraint>,
+    impact_formulas: HashMap<String, FeeImpactFormula>,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments:            HashMap<String, SegmentConfig>,
@@ -87,6 +111,8 @@ pub struct SimConfig {
     pub complaint_triggers:  Vec<ComplaintTrigger>,
     pub resolution_codes:    HashMap<String, ResolutionCode>,
     pub products:            HashMap<String, ProductConfig>,
+    pub fee_constraints:     HashMap<String, FeeConstraint>,
+    pub impact_formulas:     HashMap<String, FeeImpactFormula>,
 }
 
 impl SimConfig {
@@ -117,12 +143,22 @@ impl SimConfig {
             .map(|p| (p.product_id.clone(), p))
             .collect();
 
+        let fee_path = format!("{data_dir}/products/fee_constraints.json");
+        let fee_content = std::fs::read_to_string(&fee_path)
+            .map_err(|e| anyhow::anyhow!("Cannot read {fee_path}: {e}"))?;
+        let fee_file: FeeConstraintsFile = serde_json::from_str(&fee_content)?;
+        let fee_constraints = fee_file.fee_types.into_iter()
+            .map(|f| (f.fee_type.clone(), f))
+            .collect();
+
         Ok(Self {
             segments,
             initial_population: 500,
             complaint_triggers: complaint_file.triggers,
             resolution_codes,
             products,
+            fee_constraints,
+            impact_formulas: fee_file.impact_formulas,
         })
     }
 
@@ -203,12 +239,93 @@ impl SimConfig {
             },
         )].into();
 
+        let fee_constraints = [
+            (
+                "overdraft_fee".into(),
+                FeeConstraint {
+                    fee_type:           "overdraft_fee".into(),
+                    min_value:          0.0,
+                    max_value:          35.0,
+                    soft_limit:         29.0,
+                    soft_limit_warning: "Overdraft fees above $29 add +0.10 to UDAAP risk score".into(),
+                    hard_limit_reason:  "FDIC guidance ceiling of $35 per overdraft event".into(),
+                },
+            ),
+            (
+                "monthly_fee".into(),
+                FeeConstraint {
+                    fee_type:           "monthly_fee".into(),
+                    min_value:          0.0,
+                    max_value:          30.0,
+                    soft_limit:         20.0,
+                    soft_limit_warning: "Fees above $20/month trigger 1.4x complaint rate multiplier".into(),
+                    hard_limit_reason:  "Federal disclosure requirements limit monthly fees to $30".into(),
+                },
+            ),
+            (
+                "nsf_fee".into(),
+                FeeConstraint {
+                    fee_type:           "nsf_fee".into(),
+                    min_value:          0.0,
+                    max_value:          25.0,
+                    soft_limit:         20.0,
+                    soft_limit_warning: "NSF fees above $20 add +0.08 to UDAAP risk score".into(),
+                    hard_limit_reason:  "Industry best practice ceiling of $25".into(),
+                },
+            ),
+            (
+                "atm_fee".into(),
+                FeeConstraint {
+                    fee_type:           "atm_fee".into(),
+                    min_value:          0.0,
+                    max_value:          8.0,
+                    soft_limit:         5.0,
+                    soft_limit_warning: "ATM fees above $5 trigger satisfaction delta -0.05".into(),
+                    hard_limit_reason:  "No regulatory ceiling, competitive pressure limits to ~$8".into(),
+                },
+            ),
+            (
+                "wire_fee".into(),
+                FeeConstraint {
+                    fee_type:           "wire_fee".into(),
+                    min_value:          0.0,
+                    max_value:          50.0,
+                    soft_limit:         35.0,
+                    soft_limit_warning: "Wire fees above $35 increase premium segment churn sensitivity +0.20".into(),
+                    hard_limit_reason:  "No regulatory ceiling, market-driven limit".into(),
+                },
+            ),
+        ].into();
+
+        let impact_formulas = [
+            (
+                "overdraft_fee".into(),
+                FeeImpactFormula {
+                    parameters: serde_json::json!({
+                        "udaap_risk_threshold": 29.0,
+                        "udaap_risk_delta": 0.10
+                    }),
+                },
+            ),
+            (
+                "nsf_fee".into(),
+                FeeImpactFormula {
+                    parameters: serde_json::json!({
+                        "udaap_risk_threshold": 20.0,
+                        "udaap_risk_delta": 0.08
+                    }),
+                },
+            ),
+        ].into();
+
         Self {
             segments: [("mass_market".into(), seg)].into(),
             initial_population: 50,
             complaint_triggers: triggers,
             resolution_codes,
             products,
+            fee_constraints,
+            impact_formulas,
         }
     }
 }

@@ -97,6 +97,7 @@ pub enum SubsystemSlot {
     Economics   = 5,
     Fraud       = 6,
     Regulatory  = 7,
+    Pricing     = 8,
     // Add new subsystems here — append only.
 }
 
@@ -111,6 +112,7 @@ impl SubsystemSlot {
             Self::Economics   => "economics",
             Self::Fraud       => "fraud",
             Self::Regulatory  => "regulatory",
+            Self::Pricing     => "pricing",
         }
     }
 }

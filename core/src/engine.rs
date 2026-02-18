@@ -39,6 +39,7 @@ pub struct SimEngine {
     subsystems:          Vec<(SubsystemSlot, Box<dyn SimSubsystem>)>,
     pub store:           SimStore,
     resolution_codes:    HashMap<String, ResolutionCode>,
+    pending_commands:    Vec<SimEvent>,
 }
 
 impl SimEngine {
@@ -51,6 +52,7 @@ impl SimEngine {
             store,
             run_id,
             resolution_codes: HashMap::new(),
+            pending_commands: Vec::new(),
         }
     }
 
@@ -63,12 +65,13 @@ impl SimEngine {
         data_dir:  &str,
     ) -> anyhow::Result<Self> {
         let config = crate::config::SimConfig::load(data_dir)?;
-        
+
         // Each subsystem needs its own store connection for concurrent access
         let store_customer   = store.reopen()?;
         let store_txn        = store.reopen()?;
         let store_complaint  = store.reopen()?;
         let store_economics  = store.reopen()?;
+        let store_pricing    = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -105,6 +108,15 @@ impl SimEngine {
                 store_complaint,
             )),
         );
+        // Phase 2.1: Pricing (runs before Economics so fee changes affect same tick's P&L)
+        engine.register(
+            SubsystemSlot::Pricing,
+            Box::new(crate::pricing_subsystem::PricingSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_pricing,
+            )),
+        );
         // Phase 1D:
         engine.register(
             SubsystemSlot::Economics,
@@ -125,12 +137,13 @@ impl SimEngine {
         let store = SimStore::open(&temp_path)?;
         store.migrate()?;
         store.insert_run(&run_id, seed, "0.1.0-test")?;
-        
+
         let config = crate::config::SimConfig::default_test();
         let store_customer  = store.reopen()?;
         let store_txn       = store.reopen()?;
         let store_complaint = store.reopen()?;
         let store_economics = store.reopen()?;
+        let store_pricing   = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -162,6 +175,15 @@ impl SimEngine {
                 store_complaint,
             )),
         );
+        // Phase 2.1: Pricing (runs before Economics)
+        engine.register(
+            SubsystemSlot::Pricing,
+            Box::new(crate::pricing_subsystem::PricingSubsystem::new(
+                run_id.clone(),
+                config.clone(),
+                store_pricing,
+            )),
+        );
         engine.register(
             SubsystemSlot::Economics,
             Box::new(crate::economics_subsystem::EconomicsSubsystem::new(
@@ -178,6 +200,31 @@ impl SimEngine {
         self.subsystems.push((slot, subsystem));
     }
 
+    /// Submit a player command to be processed on the next tick.
+    pub fn submit_command(&mut self, cmd: crate::command::PlayerCommand) -> SimResult<()> {
+        let command_id = self.store.store_player_command(
+            &self.run_id,
+            self.clock.current_tick,
+            &cmd,
+        )?;
+
+        let cmd_type = match &cmd {
+            crate::command::PlayerCommand::Pause           => "pause",
+            crate::command::PlayerCommand::Resume          => "resume",
+            crate::command::PlayerCommand::SetSpeed { .. } => "set_speed",
+            crate::command::PlayerCommand::CloseComplaint { .. } => "close_complaint",
+            crate::command::PlayerCommand::SetProductFee { .. }  => "set_product_fee",
+        };
+
+        self.pending_commands.push(SimEvent::PlayerCommandReceived {
+            tick:         self.clock.current_tick,
+            command_id:   command_id.to_string(),
+            command_type: cmd_type.to_string(),
+        });
+
+        Ok(())
+    }
+
     /// Advance one tick. This is the core simulation step.
     pub fn tick(&mut self) -> SimResult<Vec<SimEvent>> {
         assert!(!self.clock.paused, "tick() called on paused engine");
@@ -186,6 +233,11 @@ impl SimEngine {
         let mut tick_events: Vec<SimEvent> = vec![
             SimEvent::TickStarted { tick: current_tick }
         ];
+
+        // Inject any pending player commands into this tick's event stream
+        if !self.pending_commands.is_empty() {
+            tick_events.extend(self.pending_commands.drain(..));
+        }
 
         // Execute each subsystem in registration order.
         // Each subsystem sees all events emitted so far this tick.
@@ -349,6 +401,29 @@ impl SimEngine {
     ) -> SimResult<Vec<crate::economics_subsystem::PnLSnapshot>> {
         self.store.all_pnl_snapshots(run_id)
     }
+
+    // ── Pricing wrapper methods (for tests and sim-runner) ──────────────────
+
+    pub fn store_product_state(
+        &self,
+        run_id: &str,
+        product_id: &str,
+    ) -> SimResult<crate::pricing_subsystem::ProductState> {
+        self.store.get_product_state(run_id, product_id)
+    }
+
+    pub fn store_udaap_score(&self, run_id: &str) -> SimResult<f64> {
+        self.store.get_udaap_score(run_id)
+    }
+
+    pub fn store_fee_change_history(
+        &self,
+        run_id: &str,
+        product_id: &str,
+        limit: usize,
+    ) -> SimResult<Vec<crate::store::FeeChangeRecord>> {
+        self.store.fee_change_history(run_id, product_id, limit)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -367,5 +442,7 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::ComplaintResolved { .. }     => "complaint_resolved",
         SimEvent::SLABreached { .. }           => "sla_breached",
         SimEvent::QuarterlyPnLComputed { .. }  => "quarterly_pnl_computed",
+        SimEvent::ProductFeeChanged { .. }     => "product_fee_changed",
+        SimEvent::FeeChangeRejected { .. }     => "fee_change_rejected",
     }
 }

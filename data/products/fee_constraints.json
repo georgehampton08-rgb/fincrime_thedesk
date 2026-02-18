@@ -1,0 +1,72 @@
+{
+  "fee_types": [
+    {
+      "fee_type": "monthly_fee",
+      "min_value": 0.0,
+      "max_value": 30.0,
+      "soft_limit": 20.0,
+      "soft_limit_warning": "Fees above $20/month trigger 1.4x complaint rate multiplier",
+      "hard_limit_reason": "Federal disclosure requirements limit monthly fees to $30"
+    },
+    {
+      "fee_type": "overdraft_fee",
+      "min_value": 0.0,
+      "max_value": 35.0,
+      "soft_limit": 29.0,
+      "soft_limit_warning": "Overdraft fees above $29 add +0.10 to UDAAP risk score",
+      "hard_limit_reason": "FDIC guidance ceiling of $35 per overdraft event"
+    },
+    {
+      "fee_type": "nsf_fee",
+      "min_value": 0.0,
+      "max_value": 25.0,
+      "soft_limit": 20.0,
+      "soft_limit_warning": "NSF fees above $20 add +0.08 to UDAAP risk score",
+      "hard_limit_reason": "Industry best practice ceiling of $25"
+    },
+    {
+      "fee_type": "atm_fee",
+      "min_value": 0.0,
+      "max_value": 8.0,
+      "soft_limit": 5.0,
+      "soft_limit_warning": "ATM fees above $5 trigger satisfaction delta -0.05",
+      "hard_limit_reason": "No regulatory ceiling, but competitive pressure limits to ~$8"
+    },
+    {
+      "fee_type": "wire_fee",
+      "min_value": 0.0,
+      "max_value": 50.0,
+      "soft_limit": 35.0,
+      "soft_limit_warning": "Wire fees above $35 increase premium segment churn sensitivity +0.20",
+      "hard_limit_reason": "No regulatory ceiling, market-driven limit"
+    }
+  ],
+
+  "impact_formulas": {
+    "monthly_fee": {
+      "complaint_multiplier_threshold": 20.0,
+      "complaint_multiplier_value": 1.4,
+      "satisfaction_delta_per_dollar_above_15": -0.002
+    },
+    "overdraft_fee": {
+      "complaint_probability_base": 0.12,
+      "complaint_probability_per_dollar_above_25": 0.015,
+      "udaap_risk_threshold": 29.0,
+      "udaap_risk_delta": 0.10
+    },
+    "nsf_fee": {
+      "complaint_probability_base": 0.18,
+      "complaint_probability_per_dollar_above_15": 0.020,
+      "udaap_risk_threshold": 20.0,
+      "udaap_risk_delta": 0.08
+    },
+    "atm_fee": {
+      "satisfaction_delta_threshold": 5.0,
+      "satisfaction_delta_per_dollar_above": -0.05
+    },
+    "wire_fee": {
+      "premium_churn_sensitivity_threshold": 35.0,
+      "premium_churn_sensitivity_delta": 0.20
+    }
+  }
+}
