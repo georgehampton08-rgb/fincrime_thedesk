@@ -4,9 +4,10 @@ use crate::{
     event::SimEvent,
     rng::SubsystemRng,
     store::{
-        BusinessEntityRow, CustodialAccountRow, CustomerAddressRow,
-        CustomerBeneficiaryRow, CustomerIdentityRow, CustomerInternationalRow,
-        CustomerPhoneRow, DbaRegistrationRow, SimStore,
+        AuthorizedSignerRow, BusinessEntityRow, CustodialAccountRow,
+        CustomerAddressRow, CustomerBeneficiaryRow, CustomerIdentityRow,
+        CustomerInternationalRow, CustomerPhoneRow, CustomerRelationshipRow,
+        CustomerRiskScoreRow, DbaRegistrationRow, JointOwnershipRow, SimStore,
         TrustAccountRow, TrustBeneficiaryRow,
     },
     subsystem::SimSubsystem,
@@ -863,6 +864,127 @@ impl CustomerSubsystem {
             kyc_renewal_date: format!("{kyc_year}-{kyc_month:02}-01"),
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 3.5-prep Tier 4: Risk scoring, signers, joint, relationships
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Compute a BSA/AML composite risk score for a customer.
+    fn compute_risk_score(
+        &self,
+        identity_type: &str,
+        addr_type: &str,
+        seg: &SegmentConfig,
+        is_international: bool,
+        is_cash_business: bool,
+        rng: &mut SubsystemRng,
+    ) -> CustomerRiskScoreRow {
+        // Identity risk: synthetic identities are high risk
+        let identity_risk = match identity_type {
+            "synthetic" => 0.85 + rng.next_f64() * 0.15,
+            _ => rng.next_f64() * 0.25,
+        };
+
+        // Geographic risk: shelter addresses, PO boxes are higher
+        let geo_risk = match addr_type {
+            "homeless_shelter" => 0.60 + rng.next_f64() * 0.20,
+            "cmra" => 0.50 + rng.next_f64() * 0.20,
+            "po_box" => 0.30 + rng.next_f64() * 0.20,
+            _ => rng.next_f64() * 0.20,
+        };
+
+        // Product risk: business accounts are higher risk
+        let product_risk = if seg.id == "small_business" {
+            0.30 + rng.next_f64() * 0.30
+        } else if seg.id == "premium" {
+            0.15 + rng.next_f64() * 0.20
+        } else {
+            rng.next_f64() * 0.25
+        };
+
+        // Behavior risk: starts low, will evolve as txn data accumulates
+        let behavior_risk = rng.next_f64() * 0.15;
+
+        // Sanctions risk
+        let sanctions_risk = if is_international { 0.30 + rng.next_f64() * 0.40 } else { 0.0 };
+
+        // Cash business penalty
+        let cash_penalty = if is_cash_business { 0.15 } else { 0.0 };
+
+        // Composite: weighted average
+        let composite = identity_risk * 0.25
+            + geo_risk * 0.15
+            + product_risk * 0.20
+            + behavior_risk * 0.15
+            + sanctions_risk * 0.15
+            + cash_penalty * 0.10;
+
+        let composite_label = if composite >= 0.70 {
+            "critical"
+        } else if composite >= 0.50 {
+            "high"
+        } else if composite >= 0.25 {
+            "medium"
+        } else {
+            "low"
+        };
+
+        let edd = composite >= 0.50;
+
+        CustomerRiskScoreRow {
+            customer_id: String::new(), // filled by caller
+            run_id: self.run_id.clone(),
+            composite_risk: composite_label.to_string(),
+            identity_risk_score: identity_risk,
+            geographic_risk_score: geo_risk,
+            product_risk_score: product_risk,
+            behavior_risk_score: behavior_risk,
+            sanctions_risk_score: sanctions_risk,
+            edd_required: edd as i64,
+            edd_last_review_tick: None,
+            risk_override: None,
+            risk_override_reason: None,
+        }
+    }
+
+    /// Generate a joint ownership record for married customers.
+    fn generate_joint_ownership(
+        &self,
+        account_id: &str,
+        customer_id: &str,
+        tick: Tick,
+        rng: &mut SubsystemRng,
+    ) -> (JointOwnershipRow, JointOwnershipRow) {
+        // Ownership type distribution
+        let otype = if rng.next_f64() < 0.70 { "jtros" }
+            else if rng.next_f64() < 0.60 { "community_property" }
+            else { "tic" };
+
+        let primary_pct = 0.50; // equal split for joint
+        let secondary_id = format!("spouse-of-{customer_id}");
+
+        let primary = JointOwnershipRow {
+            ownership_id: format!("jo-{account_id}-0"),
+            account_id: account_id.to_string(),
+            run_id: self.run_id.clone(),
+            owner_customer_id: customer_id.to_string(),
+            ownership_percentage: primary_pct,
+            ownership_type: otype.to_string(),
+            survivorship_rights: if otype == "jtros" { 1 } else { 0 },
+        };
+
+        let secondary = JointOwnershipRow {
+            ownership_id: format!("jo-{account_id}-1"),
+            account_id: account_id.to_string(),
+            run_id: self.run_id.clone(),
+            owner_customer_id: secondary_id,
+            ownership_percentage: 1.0 - primary_pct,
+            ownership_type: otype.to_string(),
+            survivorship_rights: if otype == "jtros" { 1 } else { 0 },
+        };
+
+        (primary, secondary)
+    }
 }
 
 impl SimSubsystem for CustomerSubsystem {
@@ -1024,6 +1146,57 @@ impl SimSubsystem for CustomerSubsystem {
                     self.store.insert_customer_international(&intl)?;
                 }
 
+                // ── Phase 3.5-prep Tier 4: Risk scoring, signers, joint, relationships
+
+                // Risk scoring for every customer
+                let is_intl = rng.next_f64() < self.config.identity_address.international_customer_rate;
+                let is_cash_biz = seg.id == "small_business" && rng.next_f64() < 0.50;
+                let mut risk_row = self.compute_risk_score(
+                    identity_type, &addr_row.address_type, seg,
+                    is_intl, is_cash_biz, rng,
+                );
+                risk_row.customer_id = customer.customer_id.clone();
+                self.store.insert_customer_risk_score(&risk_row)?;
+
+                // Authorized signer: ~10% of accounts get an additional signer
+                if rng.next_f64() < 0.10 {
+                    let signer = AuthorizedSignerRow {
+                        signer_id: format!("sig-{}", &customer.customer_id),
+                        account_id: account_id.clone(),
+                        run_id: self.run_id.clone(),
+                        signer_customer_id: format!("auth-{}", &customer.customer_id),
+                        signer_role: if rng.next_f64() < 0.3 { "poa".into() } else { "authorized_signer".into() },
+                        authority_level: if rng.next_f64() < 0.6 { "full".into() } else { "limited".into() },
+                        added_tick: tick as i64,
+                        removed_tick: None,
+                        is_active: 1,
+                    };
+                    self.store.insert_authorized_signer(&signer)?;
+                }
+
+                // Joint ownership for ~30% of married customers
+                if marital_status == "married" && rng.next_f64() < 0.30 {
+                    let (primary, secondary) = self.generate_joint_ownership(
+                        &account_id, &customer.customer_id, tick, rng,
+                    );
+                    self.store.insert_joint_ownership(&primary)?;
+                    self.store.insert_joint_ownership(&secondary)?;
+
+                    // Declared spouse relationship
+                    let rel = CustomerRelationshipRow {
+                        relationship_id: format!("rel-sp-{}", &customer.customer_id),
+                        run_id: self.run_id.clone(),
+                        customer_id_a: customer.customer_id.clone(),
+                        customer_id_b: format!("spouse-of-{}", &customer.customer_id),
+                        relationship_type: "spouse".to_string(),
+                        strength: 1.0,
+                        detected_tick: tick as i64,
+                        detection_method: "declared".to_string(),
+                        is_suspicious: 0,
+                    };
+                    self.store.insert_customer_relationship(&rel)?;
+                }
+
                 // Emit identity created event
                 out_events.push(SimEvent::CustomerIdentityCreated {
                     tick,
@@ -1042,7 +1215,7 @@ impl SimSubsystem for CustomerSubsystem {
 
                 onboarded += 1;
             }
-            log::info!("tick=0 customer: onboarded {onboarded} customers with identity + demographics");
+            log::info!("tick=0 customer: onboarded {onboarded} customers with full profile");
             return Ok(out_events);
         }
 

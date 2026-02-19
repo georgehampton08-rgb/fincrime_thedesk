@@ -81,6 +81,8 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/016_business_and_account_types.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/017_custodial_trust_international.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/018_risk_scoring_joint_ownership.sql"))?;
         Ok(())
     }
 
@@ -5067,6 +5069,217 @@ impl SimStore {
     pub fn pep_count(&self, run_id: &str) -> SimResult<i64> {
         Ok(self.conn.query_row(
             "SELECT COUNT(*) FROM customer_international WHERE run_id=?1 AND pep_status=1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 3.5-prep Tier 4: Risk scoring, signers, joint ownership, relationships
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone)]
+pub struct CustomerRiskScoreRow {
+    pub customer_id: String,
+    pub run_id: String,
+    pub composite_risk: String,
+    pub identity_risk_score: f64,
+    pub geographic_risk_score: f64,
+    pub product_risk_score: f64,
+    pub behavior_risk_score: f64,
+    pub sanctions_risk_score: f64,
+    pub edd_required: i64,
+    pub edd_last_review_tick: Option<i64>,
+    pub risk_override: Option<String>,
+    pub risk_override_reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthorizedSignerRow {
+    pub signer_id: String,
+    pub account_id: String,
+    pub run_id: String,
+    pub signer_customer_id: String,
+    pub signer_role: String,
+    pub authority_level: String,
+    pub added_tick: i64,
+    pub removed_tick: Option<i64>,
+    pub is_active: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct JointOwnershipRow {
+    pub ownership_id: String,
+    pub account_id: String,
+    pub run_id: String,
+    pub owner_customer_id: String,
+    pub ownership_percentage: f64,
+    pub ownership_type: String,
+    pub survivorship_rights: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomerRelationshipRow {
+    pub relationship_id: String,
+    pub run_id: String,
+    pub customer_id_a: String,
+    pub customer_id_b: String,
+    pub relationship_type: String,
+    pub strength: f64,
+    pub detected_tick: i64,
+    pub detection_method: String,
+    pub is_suspicious: i64,
+}
+
+impl SimStore {
+    // ── customer_risk_score ───────────────────────────────────────────────
+
+    pub fn insert_customer_risk_score(&self, row: &CustomerRiskScoreRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO customer_risk_score (
+                 customer_id, run_id, composite_risk, identity_risk_score,
+                 geographic_risk_score, product_risk_score, behavior_risk_score,
+                 sanctions_risk_score, edd_required, edd_last_review_tick,
+                 risk_override, risk_override_reason
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+            params![
+                row.customer_id, row.run_id, row.composite_risk,
+                row.identity_risk_score, row.geographic_risk_score,
+                row.product_risk_score, row.behavior_risk_score,
+                row.sanctions_risk_score, row.edd_required,
+                row.edd_last_review_tick, row.risk_override,
+                row.risk_override_reason,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_customer_risk_score(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+    ) -> SimResult<Option<CustomerRiskScoreRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT customer_id, run_id, composite_risk, identity_risk_score,
+                    geographic_risk_score, product_risk_score, behavior_risk_score,
+                    sanctions_risk_score, edd_required, edd_last_review_tick,
+                    risk_override, risk_override_reason
+             FROM customer_risk_score WHERE run_id=?1 AND customer_id=?2",
+        )?;
+        Ok(stmt.query_row(params![run_id, customer_id], |r| {
+            Ok(CustomerRiskScoreRow {
+                customer_id: r.get(0)?,
+                run_id: r.get(1)?,
+                composite_risk: r.get(2)?,
+                identity_risk_score: r.get(3)?,
+                geographic_risk_score: r.get(4)?,
+                product_risk_score: r.get(5)?,
+                behavior_risk_score: r.get(6)?,
+                sanctions_risk_score: r.get(7)?,
+                edd_required: r.get(8)?,
+                edd_last_review_tick: r.get(9)?,
+                risk_override: r.get(10)?,
+                risk_override_reason: r.get(11)?,
+            })
+        }).optional()?)
+    }
+
+    pub fn risk_score_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_risk_score WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn edd_required_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_risk_score WHERE run_id=?1 AND edd_required=1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── authorized_signer ─────────────────────────────────────────────────
+
+    pub fn insert_authorized_signer(&self, row: &AuthorizedSignerRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO authorized_signer (
+                 signer_id, account_id, run_id, signer_customer_id, signer_role,
+                 authority_level, added_tick, removed_tick, is_active
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![
+                row.signer_id, row.account_id, row.run_id, row.signer_customer_id,
+                row.signer_role, row.authority_level, row.added_tick,
+                row.removed_tick, row.is_active,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn authorized_signer_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM authorized_signer WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── joint_ownership ───────────────────────────────────────────────────
+
+    pub fn insert_joint_ownership(&self, row: &JointOwnershipRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO joint_ownership (
+                 ownership_id, account_id, run_id, owner_customer_id,
+                 ownership_percentage, ownership_type, survivorship_rights
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![
+                row.ownership_id, row.account_id, row.run_id,
+                row.owner_customer_id, row.ownership_percentage,
+                row.ownership_type, row.survivorship_rights,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn joint_ownership_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM joint_ownership WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── customer_relationship ─────────────────────────────────────────────
+
+    pub fn insert_customer_relationship(&self, row: &CustomerRelationshipRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO customer_relationship (
+                 relationship_id, run_id, customer_id_a, customer_id_b,
+                 relationship_type, strength, detected_tick,
+                 detection_method, is_suspicious
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![
+                row.relationship_id, row.run_id, row.customer_id_a,
+                row.customer_id_b, row.relationship_type, row.strength,
+                row.detected_tick, row.detection_method, row.is_suspicious,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn customer_relationship_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_relationship WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn suspicious_relationship_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_relationship WHERE run_id=?1 AND is_suspicious=1",
             params![run_id],
             |r| r.get(0),
         )?)
