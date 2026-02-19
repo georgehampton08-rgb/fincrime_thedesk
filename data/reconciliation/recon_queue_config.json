@@ -1,0 +1,38 @@
+{
+    "queue_configs": [
+        {
+            "rail_id": "ACH",
+            "tolerance_amount": 0.01,
+            "auto_clear_threshold": 1.00,
+            "sla_days": 3,
+            "escalation_threshold": 100.00,
+            "escalation_age_days": 7
+        },
+        {
+            "rail_id": "wire",
+            "tolerance_amount": 0.01,
+            "auto_clear_threshold": 0.50,
+            "sla_days": 1,
+            "escalation_threshold": 1000.00,
+            "escalation_age_days": 3
+        },
+        {
+            "rail_id": "RTP",
+            "tolerance_amount": 0.01,
+            "auto_clear_threshold": 0.50,
+            "sla_days": 1,
+            "escalation_threshold": 500.00,
+            "escalation_age_days": 3
+        },
+        {
+            "rail_id": "card",
+            "tolerance_amount": 1.00,
+            "auto_clear_threshold": 5.00,
+            "sla_days": 3,
+            "escalation_threshold": 100.00,
+            "escalation_age_days": 7
+        }
+    ],
+    "enable_auto_clear": true,
+    "metrics_frequency_ticks": 7
+}

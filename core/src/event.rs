@@ -203,6 +203,35 @@ pub enum SimEvent {
         original_auth_amount: f64,
         settled_amount: f64,
     },
+
+    // ── Phase 3.2: Reconciliation events ────────────────────────────
+    ReconExceptionCreated {
+        tick: Tick,
+        exception_id: String,
+        rail_id: String,
+        delta_amount: f64,
+    },
+    ReconExceptionAutoCleared {
+        tick: Tick,
+        exception_id: String,
+        delta_amount: f64,
+    },
+    ReconExceptionSLABreach {
+        tick: Tick,
+        exception_id: String,
+        age_days: Tick,
+    },
+    ReconExceptionEscalated {
+        tick: Tick,
+        exception_id: String,
+        reason: String, // 'age' or 'amount'
+    },
+    ReconExceptionResolved {
+        tick: Tick,
+        exception_id: String,
+        resolution_type: String,
+        write_off_amount: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

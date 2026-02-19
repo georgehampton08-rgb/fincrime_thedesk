@@ -422,6 +422,32 @@ struct PaymentHubFile {
     auth_expiry_ticks: Tick,
 }
 
+// ── Phase 3.2: Reconciliation config ─────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconQueueConfig {
+    pub rail_id: String,
+    pub tolerance_amount: f64,
+    pub auto_clear_threshold: f64,
+    pub sla_days: i64,
+    pub escalation_threshold: f64,
+    pub escalation_age_days: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconciliationConfig {
+    pub queue_configs: Vec<ReconQueueConfig>,
+    pub enable_auto_clear: bool,
+    pub metrics_frequency_ticks: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ReconFile {
+    queue_configs: Vec<ReconQueueConfig>,
+    enable_auto_clear: bool,
+    metrics_frequency_ticks: i64,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments: HashMap<String, SegmentConfig>,
@@ -437,6 +463,7 @@ pub struct SimConfig {
     pub complaint_analytics: ComplaintAnalyticsConfig,
     pub risk_appetite: RiskAppetiteConfig,
     pub payment_hub: PaymentHubConfig,
+    pub reconciliation: ReconciliationConfig,
 }
 
 impl SimConfig {
@@ -558,6 +585,18 @@ impl SimConfig {
             complaint_analytics,
             risk_appetite,
             payment_hub,
+            reconciliation: {
+                let recon_path =
+                    format!("{data_dir}/reconciliation/recon_queue_config.json");
+                let recon_content = std::fs::read_to_string(&recon_path)
+                    .map_err(|e| anyhow::anyhow!("Cannot read {recon_path}: {e}"))?;
+                let recon_file: ReconFile = serde_json::from_str(&recon_content)?;
+                ReconciliationConfig {
+                    queue_configs: recon_file.queue_configs,
+                    enable_auto_clear: recon_file.enable_auto_clear,
+                    metrics_frequency_ticks: recon_file.metrics_frequency_ticks,
+                }
+            },
         })
     }
 
@@ -1042,6 +1081,44 @@ impl SimConfig {
             complaint_analytics,
             risk_appetite,
             payment_hub,
+            reconciliation: ReconciliationConfig {
+                queue_configs: vec![
+                    ReconQueueConfig {
+                        rail_id: "ACH".into(),
+                        tolerance_amount: 0.01,
+                        auto_clear_threshold: 1.00,
+                        sla_days: 3,
+                        escalation_threshold: 100.00,
+                        escalation_age_days: 7,
+                    },
+                    ReconQueueConfig {
+                        rail_id: "wire".into(),
+                        tolerance_amount: 0.01,
+                        auto_clear_threshold: 0.50,
+                        sla_days: 1,
+                        escalation_threshold: 1000.00,
+                        escalation_age_days: 3,
+                    },
+                    ReconQueueConfig {
+                        rail_id: "RTP".into(),
+                        tolerance_amount: 0.01,
+                        auto_clear_threshold: 0.50,
+                        sla_days: 1,
+                        escalation_threshold: 500.00,
+                        escalation_age_days: 3,
+                    },
+                    ReconQueueConfig {
+                        rail_id: "card".into(),
+                        tolerance_amount: 1.00,
+                        auto_clear_threshold: 5.00,
+                        sla_days: 3,
+                        escalation_threshold: 100.00,
+                        escalation_age_days: 7,
+                    },
+                ],
+                enable_auto_clear: true,
+                metrics_frequency_ticks: 7,
+            },
         }
     }
 }

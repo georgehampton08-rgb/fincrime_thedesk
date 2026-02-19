@@ -229,6 +229,19 @@ impl PaymentHubSubsystem {
             };
             self.store.insert_payment_batch(&self.run_id, &batch)?;
 
+            // Write aggregated ledger entry for card settlement (one debit per batch)
+            let entry_id = format!("le-card-{tick}-debit");
+            self.store.insert_ledger_entry(
+                &self.run_id,
+                &entry_id,
+                "card",
+                tick,
+                total_amount,
+                "debit",
+                None,
+                None,
+            )?;
+
             events.push(SimEvent::PaymentBatchSettled {
                 tick,
                 batch_id,
@@ -302,6 +315,21 @@ impl PaymentHubSubsystem {
                     exception_count,
                 };
                 self.store.insert_payment_batch(&self.run_id, &batch)?;
+
+                // Write aggregated ledger entry for non-card settlement (debit, settled amount)
+                if total_amount > 0.0 {
+                    let entry_id = format!("le-{}-{tick}", rail.rail_id);
+                    self.store.insert_ledger_entry(
+                        &self.run_id,
+                        &entry_id,
+                        &rail.rail_id,
+                        tick,
+                        total_amount,
+                        "debit",
+                        None,
+                        None,
+                    )?;
+                }
 
                 events.push(SimEvent::PaymentBatchCreated {
                     tick,

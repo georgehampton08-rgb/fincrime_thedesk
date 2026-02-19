@@ -102,6 +102,7 @@ pub enum SubsystemSlot {
     ComplaintAnalytics = 11, // Phase 2.5
     RiskAppetite = 12,       // Phase 2.6
     PaymentHub = 13,         // Phase 3.1
+    Reconciliation = 14,     // Phase 3.2
                              // Add new subsystems here — append only.
 }
 
@@ -122,6 +123,7 @@ impl SubsystemSlot {
             Self::ComplaintAnalytics => "complaint_analytics",
             Self::RiskAppetite => "risk_appetite",
             Self::PaymentHub => "payment_hub",
+            Self::Reconciliation => "reconciliation",
         }
     }
 }

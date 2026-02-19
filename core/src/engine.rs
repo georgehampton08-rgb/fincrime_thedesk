@@ -77,6 +77,7 @@ impl SimEngine {
         let store_complaint_analytics = store.reopen()?;
         let store_risk_appetite = store.reopen()?;
         let store_payment_hub = store.reopen()?;
+        let store_recon = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -127,6 +128,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.payment_hub.clone(),
                 store_payment_hub,
+            )),
+        );
+        // Phase 3.2: Reconciliation (after PaymentHub)
+        engine.register(
+            SubsystemSlot::Reconciliation,
+            Box::new(crate::reconciliation_subsystem::ReconciliationSubsystem::new(
+                run_id.clone(),
+                config.reconciliation.clone(),
+                store_recon,
             )),
         );
         engine.register(
@@ -198,6 +208,7 @@ impl SimEngine {
         let store_complaint_analytics = store.reopen()?;
         let store_risk_appetite = store.reopen()?;
         let store_payment_hub = store.reopen()?;
+        let store_recon = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -243,6 +254,15 @@ impl SimEngine {
                 run_id.clone(),
                 config.payment_hub.clone(),
                 store_payment_hub,
+            )),
+        );
+        // Phase 3.2: Reconciliation (after PaymentHub)
+        engine.register(
+            SubsystemSlot::Reconciliation,
+            Box::new(crate::reconciliation_subsystem::ReconciliationSubsystem::new(
+                run_id.clone(),
+                config.reconciliation.clone(),
+                store_recon,
             )),
         );
         engine.register(
@@ -692,5 +712,10 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::PaymentBatchFailed { .. } => "payment_batch_failed",
         SimEvent::CardAuthorizationCreated { .. } => "card_authorization_created",
         SimEvent::CardSettled { .. } => "card_settled",
+        SimEvent::ReconExceptionCreated { .. } => "recon_exception_created",
+        SimEvent::ReconExceptionAutoCleared { .. } => "recon_exception_auto_cleared",
+        SimEvent::ReconExceptionSLABreach { .. } => "recon_exception_sla_breach",
+        SimEvent::ReconExceptionEscalated { .. } => "recon_exception_escalated",
+        SimEvent::ReconExceptionResolved { .. } => "recon_exception_resolved",
     }
 }
