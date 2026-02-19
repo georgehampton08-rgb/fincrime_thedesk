@@ -1,0 +1,67 @@
+{
+    "carriers": [
+        {
+            "name": "Verizon",
+            "weight": 0.30,
+            "is_mvno": false
+        },
+        {
+            "name": "AT&T",
+            "weight": 0.27,
+            "is_mvno": false
+        },
+        {
+            "name": "T-Mobile",
+            "weight": 0.25,
+            "is_mvno": false
+        },
+        {
+            "name": "Dish Wireless",
+            "weight": 0.04,
+            "is_mvno": false
+        },
+        {
+            "name": "Cricket",
+            "weight": 0.04,
+            "is_mvno": true
+        },
+        {
+            "name": "Metro by T-Mobile",
+            "weight": 0.04,
+            "is_mvno": true
+        },
+        {
+            "name": "Boost Mobile",
+            "weight": 0.03,
+            "is_mvno": true
+        },
+        {
+            "name": "Consumer Cellular",
+            "weight": 0.02,
+            "is_mvno": true
+        },
+        {
+            "name": "Straight Talk",
+            "weight": 0.01,
+            "is_mvno": true
+        }
+    ],
+    "voip_providers": [
+        {
+            "name": "Google Voice",
+            "weight": 0.40
+        },
+        {
+            "name": "Vonage",
+            "weight": 0.25
+        },
+        {
+            "name": "MagicJack",
+            "weight": 0.20
+        },
+        {
+            "name": "Ooma",
+            "weight": 0.15
+        }
+    ]
+}

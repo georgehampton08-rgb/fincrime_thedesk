@@ -717,5 +717,8 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::ReconExceptionSLABreach { .. } => "recon_exception_sla_breach",
         SimEvent::ReconExceptionEscalated { .. } => "recon_exception_escalated",
         SimEvent::ReconExceptionResolved { .. } => "recon_exception_resolved",
+        SimEvent::CustomerIdentityCreated { .. } => "customer_identity_created",
+        SimEvent::AddressSharingAlert { .. } => "address_sharing_alert",
+        SimEvent::PhoneSharingAlert { .. } => "phone_sharing_alert",
     }
 }

@@ -448,6 +448,62 @@ struct ReconFile {
     metrics_frequency_ticks: i64,
 }
 
+// ── Phase 3.5-prep: Identity & Address config ─────────────────────────────
+
+/// A geographic region pool used for weighted random assignment of
+/// state, city, zip prefix, SSN area-code range, and phone area codes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionPool {
+    pub region_id: String,
+    pub city: String,
+    pub state: String,
+    pub zip_prefix: String,
+    /// Inclusive range of SSN area codes historically associated with this region.
+    pub ssn_area_range: (u16, u16),
+    /// Relative population weight (used for deterministic weighted pick).
+    pub weight: f64,
+    /// Phone area codes active in this region.
+    pub area_codes: Vec<String>,
+}
+
+/// Config for Tier-1 customer identity, address, and phone generation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IdentityAddressConfig {
+    pub regions: Vec<RegionPool>,
+    /// Fraction of customers assigned synthetic SSN status (~0.02).
+    pub synthetic_identity_rate: f64,
+    /// Fraction of customers assigned homeless-shelter addresses (~0.015).
+    pub homeless_rate: f64,
+    /// Fraction of customers with P.O. box addresses (~0.03).
+    pub po_box_rate: f64,
+    /// Fraction of customers with CMRA addresses (~0.01).
+    pub cmra_rate: f64,
+    /// Alert threshold: number of customers sharing an address before alert fires.
+    pub address_sharing_alert_threshold: i64,
+    /// Fraction of customers whose primary phone is VoIP (~0.05).
+    pub voip_rate: f64,
+    /// Fraction of international customers (~0.008). Reserved for Tier 3.
+    pub international_customer_rate: f64,
+}
+
+/// Internal file shape for identity_address.json
+#[derive(Debug, Clone, Deserialize)]
+struct IdentityRates {
+    synthetic_identity_rate: f64,
+    homeless_rate: f64,
+    po_box_rate: f64,
+    cmra_rate: f64,
+    address_sharing_alert_threshold: i64,
+    voip_rate: f64,
+    international_customer_rate: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct IdentityAddressFile {
+    regions: Vec<RegionPool>,
+    rates: IdentityRates,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments: HashMap<String, SegmentConfig>,
@@ -464,6 +520,7 @@ pub struct SimConfig {
     pub risk_appetite: RiskAppetiteConfig,
     pub payment_hub: PaymentHubConfig,
     pub reconciliation: ReconciliationConfig,
+    pub identity_address: IdentityAddressConfig,
 }
 
 impl SimConfig {
@@ -571,6 +628,23 @@ impl SimConfig {
             auth_expiry_ticks: payment_file.auth_expiry_ticks,
         };
 
+        let identity_address = {
+            let ia_path = format!("{data_dir}/identity/identity_address.json");
+            let ia_content = std::fs::read_to_string(&ia_path)
+                .map_err(|e| anyhow::anyhow!("Cannot read {ia_path}: {e}"))?;
+            let ia_file: IdentityAddressFile = serde_json::from_str(&ia_content)?;
+            IdentityAddressConfig {
+                regions: ia_file.regions,
+                synthetic_identity_rate: ia_file.rates.synthetic_identity_rate,
+                homeless_rate: ia_file.rates.homeless_rate,
+                po_box_rate: ia_file.rates.po_box_rate,
+                cmra_rate: ia_file.rates.cmra_rate,
+                address_sharing_alert_threshold: ia_file.rates.address_sharing_alert_threshold,
+                voip_rate: ia_file.rates.voip_rate,
+                international_customer_rate: ia_file.rates.international_customer_rate,
+            }
+        };
+
         Ok(Self {
             segments,
             initial_population: 500,
@@ -597,6 +671,7 @@ impl SimConfig {
                     metrics_frequency_ticks: recon_file.metrics_frequency_ticks,
                 }
             },
+            identity_address,
         })
     }
 
@@ -1118,6 +1193,24 @@ impl SimConfig {
                 ],
                 enable_auto_clear: true,
                 metrics_frequency_ticks: 7,
+            },
+            identity_address: IdentityAddressConfig {
+                regions: vec![RegionPool {
+                    region_id: "test_nyc".into(),
+                    city: "New York".into(),
+                    state: "NY".into(),
+                    zip_prefix: "100".into(),
+                    ssn_area_range: (50, 134),
+                    weight: 1.0,
+                    area_codes: vec!["212".into(), "718".into()],
+                }],
+                synthetic_identity_rate: 0.02,
+                homeless_rate: 0.015,
+                po_box_rate: 0.03,
+                cmra_rate: 0.01,
+                address_sharing_alert_threshold: 5,
+                voip_rate: 0.05,
+                international_customer_rate: 0.008,
             },
         }
     }

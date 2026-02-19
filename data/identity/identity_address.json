@@ -1,0 +1,538 @@
+{
+    "regions": [
+        {
+            "region_id": "nyc",
+            "city": "New York",
+            "state": "NY",
+            "zip_prefix": "100",
+            "ssn_area_range": [
+                50,
+                134
+            ],
+            "weight": 0.14,
+            "area_codes": [
+                "212",
+                "347",
+                "646",
+                "718",
+                "917",
+                "929"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Rd",
+                "Pl",
+                "Ct"
+            ],
+            "dwelling_types": {
+                "apartment": 0.70,
+                "single_family": 0.15,
+                "condo": 0.10,
+                "shelter": 0.05
+            }
+        },
+        {
+            "region_id": "la",
+            "city": "Los Angeles",
+            "state": "CA",
+            "zip_prefix": "900",
+            "ssn_area_range": [
+                545,
+                573
+            ],
+            "weight": 0.12,
+            "area_codes": [
+                "213",
+                "310",
+                "323",
+                "424",
+                "657",
+                "714",
+                "747",
+                "818"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Ln",
+                "Way"
+            ],
+            "dwelling_types": {
+                "apartment": 0.55,
+                "single_family": 0.28,
+                "condo": 0.12,
+                "shelter": 0.05
+            }
+        },
+        {
+            "region_id": "chicago",
+            "city": "Chicago",
+            "state": "IL",
+            "zip_prefix": "606",
+            "ssn_area_range": [
+                318,
+                361
+            ],
+            "weight": 0.10,
+            "area_codes": [
+                "312",
+                "773",
+                "872"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Ln",
+                "Pkwy"
+            ],
+            "dwelling_types": {
+                "apartment": 0.60,
+                "single_family": 0.25,
+                "condo": 0.10,
+                "shelter": 0.05
+            }
+        },
+        {
+            "region_id": "houston",
+            "city": "Houston",
+            "state": "TX",
+            "zip_prefix": "770",
+            "ssn_area_range": [
+                449,
+                467
+            ],
+            "weight": 0.09,
+            "area_codes": [
+                "281",
+                "346",
+                "713",
+                "832"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Ln",
+                "Pkwy",
+                "Trl"
+            ],
+            "dwelling_types": {
+                "apartment": 0.48,
+                "single_family": 0.42,
+                "condo": 0.06,
+                "shelter": 0.04
+            }
+        },
+        {
+            "region_id": "atlanta",
+            "city": "Atlanta",
+            "state": "GA",
+            "zip_prefix": "303",
+            "ssn_area_range": [
+                252,
+                260
+            ],
+            "weight": 0.08,
+            "area_codes": [
+                "404",
+                "470",
+                "678",
+                "770"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Dr",
+                "Rd",
+                "Ln",
+                "Way",
+                "Pkwy"
+            ],
+            "dwelling_types": {
+                "apartment": 0.52,
+                "single_family": 0.36,
+                "condo": 0.08,
+                "shelter": 0.04
+            }
+        },
+        {
+            "region_id": "dallas",
+            "city": "Dallas",
+            "state": "TX",
+            "zip_prefix": "752",
+            "ssn_area_range": [
+                449,
+                467
+            ],
+            "weight": 0.08,
+            "area_codes": [
+                "214",
+                "469",
+                "682",
+                "817",
+                "972"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Ln",
+                "Rd"
+            ],
+            "dwelling_types": {
+                "apartment": 0.50,
+                "single_family": 0.40,
+                "condo": 0.06,
+                "shelter": 0.04
+            }
+        },
+        {
+            "region_id": "phoenix",
+            "city": "Phoenix",
+            "state": "AZ",
+            "zip_prefix": "850",
+            "ssn_area_range": [
+                526,
+                527
+            ],
+            "weight": 0.07,
+            "area_codes": [
+                "480",
+                "602",
+                "623",
+                "928"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Dr",
+                "Ln",
+                "Way",
+                "Rd",
+                "Loop"
+            ],
+            "dwelling_types": {
+                "apartment": 0.44,
+                "single_family": 0.48,
+                "condo": 0.05,
+                "shelter": 0.03
+            }
+        },
+        {
+            "region_id": "philadelphia",
+            "city": "Philadelphia",
+            "state": "PA",
+            "zip_prefix": "191",
+            "ssn_area_range": [
+                159,
+                211
+            ],
+            "weight": 0.07,
+            "area_codes": [
+                "215",
+                "267",
+                "445"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Rd",
+                "Ln",
+                "Dr"
+            ],
+            "dwelling_types": {
+                "apartment": 0.55,
+                "single_family": 0.33,
+                "condo": 0.07,
+                "shelter": 0.05
+            }
+        },
+        {
+            "region_id": "seattle",
+            "city": "Seattle",
+            "state": "WA",
+            "zip_prefix": "981",
+            "ssn_area_range": [
+                531,
+                539
+            ],
+            "weight": 0.06,
+            "area_codes": [
+                "206",
+                "253",
+                "360",
+                "425"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Dr",
+                "Way",
+                "NE",
+                "NW",
+                "SE",
+                "SW"
+            ],
+            "dwelling_types": {
+                "apartment": 0.58,
+                "single_family": 0.30,
+                "condo": 0.09,
+                "shelter": 0.03
+            }
+        },
+        {
+            "region_id": "denver",
+            "city": "Denver",
+            "state": "CO",
+            "zip_prefix": "802",
+            "ssn_area_range": [
+                521,
+                524
+            ],
+            "weight": 0.05,
+            "area_codes": [
+                "303",
+                "720"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Ln",
+                "Pkwy"
+            ],
+            "dwelling_types": {
+                "apartment": 0.50,
+                "single_family": 0.37,
+                "condo": 0.10,
+                "shelter": 0.03
+            }
+        },
+        {
+            "region_id": "miami",
+            "city": "Miami",
+            "state": "FL",
+            "zip_prefix": "331",
+            "ssn_area_range": [
+                261,
+                267
+            ],
+            "weight": 0.06,
+            "area_codes": [
+                "305",
+                "786"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Blvd",
+                "Dr",
+                "Rd",
+                "Way"
+            ],
+            "dwelling_types": {
+                "apartment": 0.62,
+                "single_family": 0.22,
+                "condo": 0.13,
+                "shelter": 0.03
+            }
+        },
+        {
+            "region_id": "boston",
+            "city": "Boston",
+            "state": "MA",
+            "zip_prefix": "021",
+            "ssn_area_range": [
+                10,
+                34
+            ],
+            "weight": 0.04,
+            "area_codes": [
+                "617",
+                "857"
+            ],
+            "street_suffixes": [
+                "St",
+                "Ave",
+                "Rd",
+                "Ln",
+                "Way",
+                "Ct",
+                "Pl"
+            ],
+            "dwelling_types": {
+                "apartment": 0.65,
+                "single_family": 0.20,
+                "condo": 0.12,
+                "shelter": 0.03
+            }
+        },
+        {
+            "region_id": "rural_midwest",
+            "city": "Springfield",
+            "state": "OH",
+            "zip_prefix": "455",
+            "ssn_area_range": [
+                268,
+                302
+            ],
+            "weight": 0.04,
+            "area_codes": [
+                "937"
+            ],
+            "street_suffixes": [
+                "Rd",
+                "St",
+                "Ave",
+                "Dr",
+                "Ln",
+                "Pike"
+            ],
+            "dwelling_types": {
+                "apartment": 0.25,
+                "single_family": 0.68,
+                "condo": 0.03,
+                "shelter": 0.04
+            }
+        }
+    ],
+    "rates": {
+        "synthetic_identity_rate": 0.020,
+        "homeless_rate": 0.015,
+        "po_box_rate": 0.030,
+        "cmra_rate": 0.010,
+        "address_sharing_alert_threshold": 5,
+        "voip_rate": 0.050,
+        "burner_phone_rate": 0.040,
+        "phone_ported_rate": 0.150,
+        "international_customer_rate": 0.008
+    },
+    "phone_types": {
+        "mobile": 0.72,
+        "home": 0.15,
+        "work": 0.10,
+        "voip": 0.03
+    },
+    "shelters": [
+        {
+            "name": "City Mission",
+            "street": "110 E 3rd St",
+            "city_override": null
+        },
+        {
+            "name": "Harbor Light Center",
+            "street": "1514 Elm St",
+            "city_override": null
+        },
+        {
+            "name": "Salvation Army Shelter",
+            "street": "950 N 18th Ave",
+            "city_override": null
+        },
+        {
+            "name": "St. Anthony's House",
+            "street": "214 N 4th St",
+            "city_override": null
+        },
+        {
+            "name": "Family Gateway Center",
+            "street": "600 N Carroll Ave",
+            "city_override": null
+        },
+        {
+            "name": "Union Rescue Mission",
+            "street": "545 S San Pedro St",
+            "city_override": "Los Angeles"
+        },
+        {
+            "name": "Bowery Mission",
+            "street": "227 Bowery",
+            "city_override": "New York"
+        },
+        {
+            "name": "Pacific Garden Mission",
+            "street": "1458 S Canal St",
+            "city_override": "Chicago"
+        },
+        {
+            "name": "Star of Hope Mission",
+            "street": "6897 Ardmore St",
+            "city_override": "Houston"
+        },
+        {
+            "name": "Atlanta Mission",
+            "street": "250 Georgia Ave SE",
+            "city_override": "Atlanta"
+        }
+    ],
+    "street_names": [
+        "Main",
+        "Oak",
+        "Maple",
+        "Cedar",
+        "Pine",
+        "Elm",
+        "Washington",
+        "Lake",
+        "Hill",
+        "Park",
+        "River",
+        "Union",
+        "Lincoln",
+        "Madison",
+        "Jefferson",
+        "Adams",
+        "Monroe",
+        "Jackson",
+        "Highland",
+        "Sunset",
+        "Valley",
+        "Forest",
+        "Meadow",
+        "Spring",
+        "Garden",
+        "Sycamore",
+        "Chestnut",
+        "Walnut",
+        "Cherry",
+        "Willow",
+        "Birch",
+        "Spruce",
+        "Central",
+        "Market",
+        "Church",
+        "College",
+        "Broad",
+        "Pleasant"
+    ],
+    "age_distribution": {
+        "segment_age_ranges": {
+            "mass_market": {
+                "min": 22,
+                "max": 72
+            },
+            "mid_tier": {
+                "min": 28,
+                "max": 65
+            },
+            "student": {
+                "min": 17,
+                "max": 26
+            },
+            "small_business": {
+                "min": 28,
+                "max": 68
+            }
+        }
+    }
+}

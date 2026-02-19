@@ -232,6 +232,28 @@ pub enum SimEvent {
         resolution_type: String,
         write_off_amount: f64,
     },
+
+    // ── Phase 3.5-prep: Identity & Address events ──────────────────────────
+    /// Fired once per customer at onboarding when identity record is persisted.
+    CustomerIdentityCreated {
+        tick: Tick,
+        customer_id: EntityId,
+        ssn_status: String,    // 'valid' | 'synthetic'
+        identity_type: String, // 'natural_person' | 'synthetic'
+    },
+    /// Fired when multiple customers are found sharing the same physical address.
+    AddressSharingAlert {
+        tick: Tick,
+        address_key: String,   // "<street>, <city>, <state> <zip>"
+        customer_count: i64,
+        alert_type: String,    // 'high_density' | 'potential_bust_out'
+    },
+    /// Fired when multiple customers share the same phone number.
+    PhoneSharingAlert {
+        tick: Tick,
+        full_number: String,
+        customer_count: i64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
