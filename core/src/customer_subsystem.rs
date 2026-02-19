@@ -397,14 +397,17 @@ impl CustomerSubsystem {
     fn pick_segment<'a>(&'a self, rng: &mut SubsystemRng) -> &'a SegmentConfig {
         let roll = rng.next_f64();
         let mut cumulative = 0.0;
-        let segments: Vec<_> = self.config.segments.values().collect();
-        for seg in &segments {
+        // Sort by key for deterministic iteration (HashMap order is random)
+        let mut keys: Vec<&String> = self.config.segments.keys().collect();
+        keys.sort();
+        for key in &keys {
+            let seg = &self.config.segments[key.as_str()];
             cumulative += seg.population_share;
             if roll < cumulative {
                 return seg;
             }
         }
-        segments.last().unwrap()
+        &self.config.segments[keys.last().unwrap().as_str()]
     }
 
     fn pick_income_band(&self, seg: &SegmentConfig, rng: &mut SubsystemRng) -> String {

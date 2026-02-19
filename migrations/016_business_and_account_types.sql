@@ -225,8 +225,7 @@ CREATE TABLE IF NOT EXISTS business_entity (
     employee_count INTEGER,
     is_cash_intensive INTEGER DEFAULT 0,
     is_high_risk_industry INTEGER DEFAULT 0,
-    shell_company_indicators INTEGER DEFAULT 0,
-    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+    shell_company_indicators INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_business_ein ON business_entity(ein);
 -- ═══════════════════════════════════════════════════════════════════════
@@ -239,8 +238,7 @@ CREATE TABLE IF NOT EXISTS dba_registration (
     dba_name TEXT NOT NULL,
     state_registered TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
-    is_potentially_deceptive INTEGER DEFAULT 0,
-    FOREIGN KEY (entity_id) REFERENCES business_entity(entity_id)
+    is_potentially_deceptive INTEGER DEFAULT 0
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Beneficiaries
@@ -257,8 +255,7 @@ CREATE TABLE IF NOT EXISTS customer_beneficiary (
     beneficiary_share REAL NOT NULL,
     is_per_stirpes INTEGER DEFAULT 0,
     trust_for_minor INTEGER DEFAULT 0,
-    verified INTEGER DEFAULT 0,
-    FOREIGN KEY (account_id) REFERENCES account(account_id)
+    verified INTEGER DEFAULT 0
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Extend account table

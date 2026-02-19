@@ -19,8 +19,7 @@ CREATE TABLE IF NOT EXISTS customer_risk_score (
     edd_last_review_tick INTEGER,
     risk_override TEXT,
     -- escalated | de-escalated
-    risk_override_reason TEXT,
-    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+    risk_override_reason TEXT
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Account authorized signers (beyond primary owner)
@@ -36,8 +35,7 @@ CREATE TABLE IF NOT EXISTS authorized_signer (
     -- full | limited | view_only
     added_tick INTEGER NOT NULL,
     removed_tick INTEGER,
-    is_active INTEGER DEFAULT 1,
-    FOREIGN KEY (account_id) REFERENCES account(account_id)
+    is_active INTEGER DEFAULT 1
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Joint ownership (multi-party accounts)
@@ -50,8 +48,7 @@ CREATE TABLE IF NOT EXISTS joint_ownership (
     ownership_percentage REAL NOT NULL,
     ownership_type TEXT NOT NULL,
     -- jtros | tic | community_property
-    survivorship_rights INTEGER DEFAULT 1,
-    FOREIGN KEY (account_id) REFERENCES account(account_id)
+    survivorship_rights INTEGER DEFAULT 1
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Customer relationships (graph links)
@@ -68,7 +65,5 @@ CREATE TABLE IF NOT EXISTS customer_relationship (
     detected_tick INTEGER NOT NULL,
     detection_method TEXT NOT NULL,
     -- declared | inferred_address | inferred_phone | inferred_txn
-    is_suspicious INTEGER DEFAULT 0,
-    FOREIGN KEY (customer_id_a) REFERENCES customer(customer_id),
-    FOREIGN KEY (customer_id_b) REFERENCES customer(customer_id)
+    is_suspicious INTEGER DEFAULT 0
 );

@@ -17,7 +17,7 @@ fn business_entity_generated_for_small_business() {
     engine.run_ticks(1).unwrap();
 
     let entity_count = engine.store.business_entity_count("biz-ent-test").unwrap();
-    // With 50 customers and ~10% small_business, expect at least 1 entity
+    // With 50 customers and 20% small_business segment, expect several entities
     assert!(
         entity_count > 0,
         "Expected at least 1 business entity, got 0"

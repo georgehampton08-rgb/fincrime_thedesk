@@ -407,8 +407,10 @@ impl SimSubsystem for ChurnSubsystem {
                 }
             }
 
-            // Aggregate metrics per segment
-            for segment in self.config.segments.keys().cloned().collect::<Vec<_>>() {
+            // Aggregate metrics per segment (sorted for determinism)
+            let mut seg_keys: Vec<String> = self.config.segments.keys().cloned().collect();
+            seg_keys.sort();
+            for segment in seg_keys {
                 if let Ok(agg) = self
                     .store
                     .compute_churn_aggregate(&self.run_id, &segment, tick)

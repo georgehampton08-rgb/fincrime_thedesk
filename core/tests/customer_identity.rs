@@ -158,7 +158,7 @@ fn phone_numbers_are_formatted_correctly() {
         );
         // "+1-NNN-NNN-NNNN" = 15 chars
         assert_eq!(
-            row.full_number.len(), 16,
+            row.full_number.len(), 15,
             "Phone number length wrong: '{}'", row.full_number
         );
     }

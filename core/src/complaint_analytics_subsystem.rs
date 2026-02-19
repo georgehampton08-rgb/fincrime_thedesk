@@ -95,7 +95,9 @@ impl ComplaintAnalyticsSubsystem {
         let window = pattern_config.clustering_window_ticks;
 
         // Pattern 1: Velocity spikes by issue category
-        for category in pattern_config.issue_categories.keys() {
+        let mut categories: Vec<&String> = pattern_config.issue_categories.keys().collect();
+        categories.sort();
+        for category in categories {
             let recent_count = self.store.complaint_count_by_category(
                 &self.run_id,
                 category,
@@ -146,7 +148,9 @@ impl ComplaintAnalyticsSubsystem {
         }
 
         // Pattern 2: Segment concentration
-        for segment in self.config.segments.keys() {
+        let mut seg_keys: Vec<&String> = self.config.segments.keys().collect();
+        seg_keys.sort();
+        for segment in seg_keys {
             let segment_complaints = self.store.complaint_count_by_segment(
                 &self.run_id,
                 segment,
@@ -252,7 +256,9 @@ impl ComplaintAnalyticsSubsystem {
             .resolution_effectiveness
             .effectiveness_measurement_window;
 
-        for resolution_code in self.config.resolution_codes.keys() {
+        let mut res_keys: Vec<&String> = self.config.resolution_codes.keys().collect();
+        res_keys.sort();
+        for resolution_code in res_keys {
             let resolved = self.store.complaints_resolved_with_code(
                 &self.run_id,
                 resolution_code,
@@ -414,7 +420,9 @@ impl ComplaintAnalyticsSubsystem {
         let ew_config = &self.config.complaint_analytics.early_warning_indicators;
 
         // Warning 1: Breach rate above threshold per segment
-        for segment in self.config.segments.keys() {
+        let mut warning_seg_keys: Vec<&String> = self.config.segments.keys().collect();
+        warning_seg_keys.sort();
+        for segment in warning_seg_keys {
             let breach_rate = self.store.segment_breach_rate(
                 &self.run_id,
                 segment,

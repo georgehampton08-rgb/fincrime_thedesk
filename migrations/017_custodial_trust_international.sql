@@ -16,10 +16,7 @@ CREATE TABLE IF NOT EXISTS custodial_account (
     custodian_relationship TEXT NOT NULL,
     -- parent | grandparent | guardian
     tax_reporting_ssn TEXT NOT NULL,
-    state_governed TEXT NOT NULL,
-    FOREIGN KEY (account_id) REFERENCES account(account_id),
-    FOREIGN KEY (minor_customer_id) REFERENCES customer(customer_id),
-    FOREIGN KEY (custodian_customer_id) REFERENCES customer(customer_id)
+    state_governed TEXT NOT NULL
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- Trust accounts
@@ -41,8 +38,7 @@ CREATE TABLE IF NOT EXISTS trust_account (
     tax_treatment TEXT NOT NULL,
     -- grantor | non-grantor
     spendthrift_clause INTEGER DEFAULT 0,
-    special_needs_trust INTEGER DEFAULT 0,
-    FOREIGN KEY (account_id) REFERENCES account(account_id)
+    special_needs_trust INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS trust_beneficiary (
     beneficiary_id TEXT PRIMARY KEY,
@@ -53,8 +49,7 @@ CREATE TABLE IF NOT EXISTS trust_beneficiary (
     beneficiary_type TEXT NOT NULL,
     -- primary | contingent | remainder
     beneficiary_share REAL NOT NULL,
-    conditions TEXT,
-    FOREIGN KEY (account_id) REFERENCES trust_account(account_id)
+    conditions TEXT
 );
 -- ═══════════════════════════════════════════════════════════════════════
 -- International customers
@@ -71,6 +66,5 @@ CREATE TABLE IF NOT EXISTS customer_international (
     sanctions_risk TEXT NOT NULL DEFAULT 'low',
     pep_status INTEGER DEFAULT 0,
     source_of_funds TEXT,
-    kyc_renewal_date TEXT NOT NULL,
-    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+    kyc_renewal_date TEXT NOT NULL
 );

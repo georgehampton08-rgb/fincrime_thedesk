@@ -680,7 +680,7 @@ impl SimConfig {
         let seg = SegmentConfig {
             id: "mass_market".into(),
             label: "Mass Market".into(),
-            population_share: 1.0,
+            population_share: 0.70,
             income_bands: vec!["low".into()],
             income_band_weights: vec![1.0],
             monthly_txn_count_mean: 20.0,
@@ -695,6 +695,48 @@ impl SimConfig {
             nsf_probability_per_tick: 0.002,
             base_churn_rate_per_tick: 0.001,
             fee_sensitivity: 0.8,
+            products: vec!["basic_checking".into()],
+        };
+
+        let seg_biz = SegmentConfig {
+            id: "small_business".into(),
+            label: "Small Business".into(),
+            population_share: 0.20,
+            income_bands: vec!["medium".into(), "high".into()],
+            income_band_weights: vec![0.6, 0.4],
+            monthly_txn_count_mean: 40.0,
+            monthly_txn_count_std: 10.0,
+            txn_amount_pareto_xmin: 50.0,
+            txn_amount_pareto_alpha: 1.5,
+            cash_intensity: 0.50,
+            payroll_probability: 0.8,
+            payroll_amount_mean: 5000.0,
+            payroll_amount_std: 1500.0,
+            overdraft_probability_per_tick: 0.008,
+            nsf_probability_per_tick: 0.004,
+            base_churn_rate_per_tick: 0.0008,
+            fee_sensitivity: 0.5,
+            products: vec!["basic_checking".into()],
+        };
+
+        let seg_premium = SegmentConfig {
+            id: "premium".into(),
+            label: "Premium".into(),
+            population_share: 0.10,
+            income_bands: vec!["high".into()],
+            income_band_weights: vec![1.0],
+            monthly_txn_count_mean: 30.0,
+            monthly_txn_count_std: 6.0,
+            txn_amount_pareto_xmin: 100.0,
+            txn_amount_pareto_alpha: 1.3,
+            cash_intensity: 0.10,
+            payroll_probability: 0.7,
+            payroll_amount_mean: 8000.0,
+            payroll_amount_std: 2000.0,
+            overdraft_probability_per_tick: 0.002,
+            nsf_probability_per_tick: 0.001,
+            base_churn_rate_per_tick: 0.0005,
+            fee_sensitivity: 0.3,
             products: vec!["basic_checking".into()],
         };
 
@@ -1143,7 +1185,11 @@ impl SimConfig {
         };
 
         Self {
-            segments: [("mass_market".into(), seg)].into(),
+            segments: [
+                ("mass_market".into(), seg),
+                ("small_business".into(), seg_biz),
+                ("premium".into(), seg_premium),
+            ].into(),
             initial_population: 50,
             complaint_triggers: triggers,
             resolution_codes,

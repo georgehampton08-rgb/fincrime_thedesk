@@ -241,7 +241,9 @@ impl EconomicsSubsystem {
     ) -> SimResult<HashMap<String, SegmentPnL>> {
         let mut result = HashMap::new();
 
-        for segment_name in self.config.segments.keys() {
+        let mut seg_keys: Vec<&String> = self.config.segments.keys().collect();
+        seg_keys.sort();
+        for segment_name in seg_keys {
             let pnl = self.compute_single_segment_pnl(
                 segment_name,
                 tick,
