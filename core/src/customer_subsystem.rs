@@ -4,8 +4,10 @@ use crate::{
     event::SimEvent,
     rng::SubsystemRng,
     store::{
-        BusinessEntityRow, CustomerAddressRow, CustomerBeneficiaryRow,
-        CustomerIdentityRow, CustomerPhoneRow, DbaRegistrationRow, SimStore,
+        BusinessEntityRow, CustodialAccountRow, CustomerAddressRow,
+        CustomerBeneficiaryRow, CustomerIdentityRow, CustomerInternationalRow,
+        CustomerPhoneRow, DbaRegistrationRow, SimStore,
+        TrustAccountRow, TrustBeneficiaryRow,
     },
     subsystem::SimSubsystem,
     types::{RunId, Tick},
@@ -667,6 +669,200 @@ impl CustomerSubsystem {
             verified: if marital_status == "married" { 1 } else { 0 },
         })
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 3.5-prep Tier 3: Custodial, trust, international
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Generate a custodial UTMA/UGMA account for a minor.
+    fn generate_custodial_account(
+        &self,
+        custodian_id: &str,
+        custodian_ssn: &str,
+        state: &str,
+        idx: usize,
+        tick: Tick,
+        rng: &mut SubsystemRng,
+    ) -> CustodialAccountRow {
+        let account_type = if rng.next_f64() < 0.6 { "utma" } else { "ugma" };
+        // Minor age: 0-15
+        let minor_age = rng.next_u64_below(16) as i32;
+        let birth_year = SIM_BASE_YEAR - minor_age;
+        let minor_dob = format!("{birth_year}-06-15");
+
+        // Termination age varies by state (simplified)
+        let termination_age = match state {
+            "CA" | "NV" | "OR" | "WA" => 18,
+            "AK" | "FL" | "NC" => 21,
+            "PA" | "VA" => 25,
+            _ => 21,
+        };
+
+        let relationship = if rng.next_f64() < 0.75 { "parent" }
+            else if rng.next_f64() < 0.5 { "grandparent" }
+            else { "guardian" };
+
+        CustodialAccountRow {
+            account_id: format!("utma-{idx:04}"),
+            run_id: self.run_id.clone(),
+            account_type: account_type.to_string(),
+            minor_customer_id: format!("minor-{idx:04}"),
+            minor_dob,
+            age_of_majority: 18,
+            termination_age: termination_age as i64,
+            custodian_customer_id: custodian_id.to_string(),
+            custodian_relationship: relationship.to_string(),
+            tax_reporting_ssn: custodian_ssn.to_string(),
+            state_governed: state.to_string(),
+        }
+    }
+
+    /// Generate a trust account for premium customers.
+    fn generate_trust_account(
+        &self,
+        grantor_id: &str,
+        state: &str,
+        idx: usize,
+        rng: &mut SubsystemRng,
+    ) -> (TrustAccountRow, Vec<TrustBeneficiaryRow>) {
+        let trust_types = &[
+            ("revocable", 0.55),
+            ("irrevocable", 0.25),
+            ("testamentary", 0.10),
+            ("special_needs", 0.10),
+        ];
+        let roll = rng.next_f64();
+        let mut cum = 0.0;
+        let mut trust_type = "revocable";
+        for (tt, w) in trust_types {
+            cum += w;
+            if roll < cum {
+                trust_type = tt;
+                break;
+            }
+        }
+
+        let is_revocable = trust_type == "revocable";
+        let account_id = format!("trust-{idx:04}");
+        let trust_name = format!("Trust-{idx:04}-Family");
+
+        // Irrevocable trusts need their own EIN; revocable use grantor SSN
+        let (trust_ein, tax_reporting_id, tax_treatment) = if is_revocable {
+            (None, format!("grantor-ssn-{idx}"), "grantor")
+        } else {
+            let ein = self.generate_ein(state, idx + 10000, rng);
+            let tid = ein.clone();
+            (Some(ein), tid, "non-grantor")
+        };
+
+        let bene_count = (rng.next_u64_below(3) + 1) as i64;
+
+        let trust_row = TrustAccountRow {
+            account_id: account_id.clone(),
+            run_id: self.run_id.clone(),
+            trust_type: trust_type.to_string(),
+            trust_name,
+            trust_ein,
+            grantor_customer_id: Some(grantor_id.to_string()),
+            trustee_customer_id: grantor_id.to_string(), // self-trustee for revocable
+            trustee_type: if is_revocable { "individual".into() } else { "corporate".into() },
+            beneficiary_count: bene_count,
+            revocable: is_revocable as i64,
+            tax_reporting_id,
+            tax_treatment: tax_treatment.to_string(),
+            spendthrift_clause: if !is_revocable { 1 } else { 0 },
+            special_needs_trust: (trust_type == "special_needs") as i64,
+        };
+
+        // Generate beneficiary rows
+        let mut beneficiaries = Vec::new();
+        for b in 0..bene_count {
+            let share = 1.0 / bene_count as f64;
+            beneficiaries.push(TrustBeneficiaryRow {
+                beneficiary_id: format!("tb-{idx:04}-{b}"),
+                account_id: account_id.clone(),
+                run_id: self.run_id.clone(),
+                beneficiary_customer_id: None,
+                beneficiary_name: format!("TrustBene-{idx:04}-{b}"),
+                beneficiary_type: if b == 0 { "primary".into() } else { "contingent".into() },
+                beneficiary_share: share,
+                conditions: if trust_type == "special_needs" {
+                    Some("supplemental_needs_only".into())
+                } else {
+                    None
+                },
+            });
+        }
+
+        (trust_row, beneficiaries)
+    }
+
+    /// Generate an international customer record.
+    fn generate_international(
+        &self,
+        customer_id: &str,
+        tick: Tick,
+        rng: &mut SubsystemRng,
+    ) -> CustomerInternationalRow {
+        // Country distribution (simplified)
+        let countries = &[
+            ("GB", "low"),
+            ("CA", "low"),
+            ("MX", "low"),
+            ("DE", "low"),
+            ("IN", "low"),
+            ("CN", "medium"),
+            ("BR", "medium"),
+            ("RU", "high"),
+            ("IR", "high"),
+            ("KP", "high"),
+        ];
+        let idx = rng.next_u64_below(countries.len() as u64) as usize;
+        let (country, risk_level) = countries[idx];
+
+        let is_us_person = rng.next_f64() < 0.30; // 30% are US persons living abroad
+        let visa_status = if !is_us_person {
+            Some(match rng.next_u64_below(4) {
+                0 => "H1B",
+                1 => "F1",
+                2 => "L1",
+                _ => "B1/B2",
+            }.to_string())
+        } else {
+            None
+        };
+
+        // OFAC screening
+        let high_risk_countries = ["RU", "IR", "KP", "SY", "CU"];
+        let ofac_status = if high_risk_countries.contains(&country) {
+            "flagged"
+        } else if rng.next_f64() < 0.05 {
+            "flagged" // 5% false positive rate
+        } else {
+            "clear"
+        };
+
+        // PEP status (~2%)
+        let is_pep = rng.next_f64() < 0.02;
+
+        let kyc_year = SIM_BASE_YEAR + 1;
+        let kyc_month = (rng.next_u64_below(12) + 1) as i32;
+
+        CustomerInternationalRow {
+            customer_id: customer_id.to_string(),
+            run_id: self.run_id.clone(),
+            citizenship_country: country.to_string(),
+            residency_country: if is_us_person { "US".into() } else { country.to_string() },
+            is_us_person: is_us_person as i64,
+            visa_status,
+            foreign_tin: if !is_us_person { Some(format!("FT-{customer_id}")) } else { None },
+            ofac_check_status: ofac_status.to_string(),
+            sanctions_risk: risk_level.to_string(),
+            pep_status: is_pep as i64,
+            source_of_funds: Some("employment".to_string()),
+            kyc_renewal_date: format!("{kyc_year}-{kyc_month:02}-01"),
+        }
+    }
 }
 
 impl SimSubsystem for CustomerSubsystem {
@@ -796,6 +992,36 @@ impl SimSubsystem for CustomerSubsystem {
                     &account_id, &customer.customer_id, marital_status, rng,
                 ) {
                     self.store.insert_customer_beneficiary(&bene)?;
+                }
+
+                // ── Phase 3.5-prep Tier 3: Custodial, trust, international ──
+
+                // ~2% of customers with age<50 get a custodial account for a minor
+                if age < 50 && rng.next_f64() < 0.02 {
+                    let custodial = self.generate_custodial_account(
+                        &customer.customer_id, &ssn_full, &state_code,
+                        onboarded, tick, rng,
+                    );
+                    self.store.insert_custodial_account(&custodial)?;
+                }
+
+                // ~3% of premium customers get a trust account
+                if seg.id == "premium" && rng.next_f64() < 0.03 {
+                    let (trust_row, benes) = self.generate_trust_account(
+                        &customer.customer_id, &state_code, onboarded, rng,
+                    );
+                    self.store.insert_trust_account(&trust_row)?;
+                    for bene in &benes {
+                        self.store.insert_trust_beneficiary(bene)?;
+                    }
+                }
+
+                // ~3% are international customers
+                if rng.next_f64() < self.config.identity_address.international_customer_rate {
+                    let intl = self.generate_international(
+                        &customer.customer_id, tick, rng,
+                    );
+                    self.store.insert_customer_international(&intl)?;
                 }
 
                 // Emit identity created event

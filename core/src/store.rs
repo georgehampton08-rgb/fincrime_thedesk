@@ -79,6 +79,8 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/015_customer_identity.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/016_business_and_account_types.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/017_custodial_trust_international.sql"))?;
         Ok(())
     }
 
@@ -4788,5 +4790,285 @@ impl SimStore {
             |r| r.get(0),
         ).optional()?.flatten();
         Ok(result)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 3.5-prep Tier 3: Custodial, trust, international
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone)]
+pub struct CustodialAccountRow {
+    pub account_id: String,
+    pub run_id: String,
+    pub account_type: String,
+    pub minor_customer_id: String,
+    pub minor_dob: String,
+    pub age_of_majority: i64,
+    pub termination_age: i64,
+    pub custodian_customer_id: String,
+    pub custodian_relationship: String,
+    pub tax_reporting_ssn: String,
+    pub state_governed: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustAccountRow {
+    pub account_id: String,
+    pub run_id: String,
+    pub trust_type: String,
+    pub trust_name: String,
+    pub trust_ein: Option<String>,
+    pub grantor_customer_id: Option<String>,
+    pub trustee_customer_id: String,
+    pub trustee_type: String,
+    pub beneficiary_count: i64,
+    pub revocable: i64,
+    pub tax_reporting_id: String,
+    pub tax_treatment: String,
+    pub spendthrift_clause: i64,
+    pub special_needs_trust: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustBeneficiaryRow {
+    pub beneficiary_id: String,
+    pub account_id: String,
+    pub run_id: String,
+    pub beneficiary_customer_id: Option<String>,
+    pub beneficiary_name: String,
+    pub beneficiary_type: String,
+    pub beneficiary_share: f64,
+    pub conditions: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomerInternationalRow {
+    pub customer_id: String,
+    pub run_id: String,
+    pub citizenship_country: String,
+    pub residency_country: String,
+    pub is_us_person: i64,
+    pub visa_status: Option<String>,
+    pub foreign_tin: Option<String>,
+    pub ofac_check_status: String,
+    pub sanctions_risk: String,
+    pub pep_status: i64,
+    pub source_of_funds: Option<String>,
+    pub kyc_renewal_date: String,
+}
+
+impl SimStore {
+    // ── custodial_account ─────────────────────────────────────────────────
+
+    pub fn insert_custodial_account(&self, row: &CustodialAccountRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO custodial_account (
+                 account_id, run_id, account_type, minor_customer_id, minor_dob,
+                 age_of_majority, termination_age, custodian_customer_id,
+                 custodian_relationship, tax_reporting_ssn, state_governed
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            params![
+                row.account_id, row.run_id, row.account_type, row.minor_customer_id,
+                row.minor_dob, row.age_of_majority, row.termination_age,
+                row.custodian_customer_id, row.custodian_relationship,
+                row.tax_reporting_ssn, row.state_governed,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_custodial_account(
+        &self,
+        run_id: &str,
+        account_id: &str,
+    ) -> SimResult<Option<CustodialAccountRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT account_id, run_id, account_type, minor_customer_id, minor_dob,
+                    age_of_majority, termination_age, custodian_customer_id,
+                    custodian_relationship, tax_reporting_ssn, state_governed
+             FROM custodial_account WHERE run_id=?1 AND account_id=?2",
+        )?;
+        Ok(stmt.query_row(params![run_id, account_id], |r| {
+            Ok(CustodialAccountRow {
+                account_id: r.get(0)?,
+                run_id: r.get(1)?,
+                account_type: r.get(2)?,
+                minor_customer_id: r.get(3)?,
+                minor_dob: r.get(4)?,
+                age_of_majority: r.get(5)?,
+                termination_age: r.get(6)?,
+                custodian_customer_id: r.get(7)?,
+                custodian_relationship: r.get(8)?,
+                tax_reporting_ssn: r.get(9)?,
+                state_governed: r.get(10)?,
+            })
+        }).optional()?)
+    }
+
+    pub fn custodial_account_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM custodial_account WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── trust_account ─────────────────────────────────────────────────────
+
+    pub fn insert_trust_account(&self, row: &TrustAccountRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO trust_account (
+                 account_id, run_id, trust_type, trust_name, trust_ein,
+                 grantor_customer_id, trustee_customer_id, trustee_type,
+                 beneficiary_count, revocable, tax_reporting_id, tax_treatment,
+                 spendthrift_clause, special_needs_trust
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+            params![
+                row.account_id, row.run_id, row.trust_type, row.trust_name,
+                row.trust_ein, row.grantor_customer_id, row.trustee_customer_id,
+                row.trustee_type, row.beneficiary_count, row.revocable,
+                row.tax_reporting_id, row.tax_treatment,
+                row.spendthrift_clause, row.special_needs_trust,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_trust_account(
+        &self,
+        run_id: &str,
+        account_id: &str,
+    ) -> SimResult<Option<TrustAccountRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT account_id, run_id, trust_type, trust_name, trust_ein,
+                    grantor_customer_id, trustee_customer_id, trustee_type,
+                    beneficiary_count, revocable, tax_reporting_id, tax_treatment,
+                    spendthrift_clause, special_needs_trust
+             FROM trust_account WHERE run_id=?1 AND account_id=?2",
+        )?;
+        Ok(stmt.query_row(params![run_id, account_id], |r| {
+            Ok(TrustAccountRow {
+                account_id: r.get(0)?,
+                run_id: r.get(1)?,
+                trust_type: r.get(2)?,
+                trust_name: r.get(3)?,
+                trust_ein: r.get(4)?,
+                grantor_customer_id: r.get(5)?,
+                trustee_customer_id: r.get(6)?,
+                trustee_type: r.get(7)?,
+                beneficiary_count: r.get(8)?,
+                revocable: r.get(9)?,
+                tax_reporting_id: r.get(10)?,
+                tax_treatment: r.get(11)?,
+                spendthrift_clause: r.get(12)?,
+                special_needs_trust: r.get(13)?,
+            })
+        }).optional()?)
+    }
+
+    pub fn trust_account_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM trust_account WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── trust_beneficiary ─────────────────────────────────────────────────
+
+    pub fn insert_trust_beneficiary(&self, row: &TrustBeneficiaryRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO trust_beneficiary (
+                 beneficiary_id, account_id, run_id, beneficiary_customer_id,
+                 beneficiary_name, beneficiary_type, beneficiary_share, conditions
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![
+                row.beneficiary_id, row.account_id, row.run_id,
+                row.beneficiary_customer_id, row.beneficiary_name,
+                row.beneficiary_type, row.beneficiary_share, row.conditions,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn trust_beneficiary_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM trust_beneficiary WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── customer_international ────────────────────────────────────────────
+
+    pub fn insert_customer_international(&self, row: &CustomerInternationalRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO customer_international (
+                 customer_id, run_id, citizenship_country, residency_country,
+                 is_us_person, visa_status, foreign_tin, ofac_check_status,
+                 sanctions_risk, pep_status, source_of_funds, kyc_renewal_date
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+            params![
+                row.customer_id, row.run_id, row.citizenship_country,
+                row.residency_country, row.is_us_person, row.visa_status,
+                row.foreign_tin, row.ofac_check_status, row.sanctions_risk,
+                row.pep_status, row.source_of_funds, row.kyc_renewal_date,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_customer_international(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+    ) -> SimResult<Option<CustomerInternationalRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT customer_id, run_id, citizenship_country, residency_country,
+                    is_us_person, visa_status, foreign_tin, ofac_check_status,
+                    sanctions_risk, pep_status, source_of_funds, kyc_renewal_date
+             FROM customer_international WHERE run_id=?1 AND customer_id=?2",
+        )?;
+        Ok(stmt.query_row(params![run_id, customer_id], |r| {
+            Ok(CustomerInternationalRow {
+                customer_id: r.get(0)?,
+                run_id: r.get(1)?,
+                citizenship_country: r.get(2)?,
+                residency_country: r.get(3)?,
+                is_us_person: r.get(4)?,
+                visa_status: r.get(5)?,
+                foreign_tin: r.get(6)?,
+                ofac_check_status: r.get(7)?,
+                sanctions_risk: r.get(8)?,
+                pep_status: r.get(9)?,
+                source_of_funds: r.get(10)?,
+                kyc_renewal_date: r.get(11)?,
+            })
+        }).optional()?)
+    }
+
+    pub fn international_customer_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_international WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn ofac_flagged_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_international WHERE run_id=?1 AND ofac_check_status='flagged'",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn pep_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_international WHERE run_id=?1 AND pep_status=1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
     }
 }
