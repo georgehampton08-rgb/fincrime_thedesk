@@ -77,6 +77,8 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/014_reconciliation.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/015_customer_identity.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/016_business_and_account_types.sql"))?;
         Ok(())
     }
 
@@ -4510,3 +4512,281 @@ impl SimStore {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 3.5-prep Tier 2: Business entities, account types, beneficiaries
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone)]
+pub struct BusinessEntityRow {
+    pub entity_id: String,
+    pub run_id: String,
+    pub customer_id: String,
+    pub legal_name: String,
+    pub dba_name: Option<String>,
+    pub entity_type: String,
+    pub ein: String,
+    pub state_registration: String,
+    pub formation_date: String,
+    pub ownership_type: String,
+    pub owner_count: i64,
+    pub naics_code: String,
+    pub annual_revenue: Option<f64>,
+    pub employee_count: Option<i64>,
+    pub is_cash_intensive: i64,
+    pub is_high_risk_industry: i64,
+    pub shell_company_indicators: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DbaRegistrationRow {
+    pub dba_id: String,
+    pub entity_id: String,
+    pub run_id: String,
+    pub dba_name: String,
+    pub state_registered: String,
+    pub status: String,
+    pub is_potentially_deceptive: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomerBeneficiaryRow {
+    pub beneficiary_id: String,
+    pub account_id: String,
+    pub run_id: String,
+    pub beneficiary_name: String,
+    pub beneficiary_relationship: String,
+    pub beneficiary_type: String,
+    pub beneficiary_share: f64,
+    pub is_per_stirpes: i64,
+    pub trust_for_minor: i64,
+    pub verified: i64,
+}
+
+impl SimStore {
+    // ── business_entity ───────────────────────────────────────────────────
+
+    pub fn insert_business_entity(&self, row: &BusinessEntityRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO business_entity (
+                 entity_id, run_id, customer_id, legal_name, dba_name, entity_type,
+                 ein, state_registration, formation_date, ownership_type, owner_count,
+                 naics_code, annual_revenue, employee_count,
+                 is_cash_intensive, is_high_risk_industry, shell_company_indicators
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
+            params![
+                row.entity_id, row.run_id, row.customer_id, row.legal_name,
+                row.dba_name, row.entity_type, row.ein, row.state_registration,
+                row.formation_date, row.ownership_type, row.owner_count,
+                row.naics_code, row.annual_revenue, row.employee_count,
+                row.is_cash_intensive, row.is_high_risk_industry, row.shell_company_indicators,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_business_entity(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+    ) -> SimResult<Option<BusinessEntityRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT entity_id, run_id, customer_id, legal_name, dba_name, entity_type,
+                    ein, state_registration, formation_date, ownership_type, owner_count,
+                    naics_code, annual_revenue, employee_count,
+                    is_cash_intensive, is_high_risk_industry, shell_company_indicators
+             FROM business_entity WHERE run_id = ?1 AND customer_id = ?2",
+        )?;
+        let row = stmt
+            .query_row(params![run_id, customer_id], |r| {
+                Ok(BusinessEntityRow {
+                    entity_id: r.get(0)?,
+                    run_id: r.get(1)?,
+                    customer_id: r.get(2)?,
+                    legal_name: r.get(3)?,
+                    dba_name: r.get(4)?,
+                    entity_type: r.get(5)?,
+                    ein: r.get(6)?,
+                    state_registration: r.get(7)?,
+                    formation_date: r.get(8)?,
+                    ownership_type: r.get(9)?,
+                    owner_count: r.get(10)?,
+                    naics_code: r.get(11)?,
+                    annual_revenue: r.get(12)?,
+                    employee_count: r.get(13)?,
+                    is_cash_intensive: r.get(14)?,
+                    is_high_risk_industry: r.get(15)?,
+                    shell_company_indicators: r.get(16)?,
+                })
+            })
+            .optional()?;
+        Ok(row)
+    }
+
+    pub fn business_entity_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM business_entity WHERE run_id = ?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── dba_registration ──────────────────────────────────────────────────
+
+    pub fn insert_dba_registration(&self, row: &DbaRegistrationRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO dba_registration (
+                 dba_id, entity_id, run_id, dba_name, state_registered,
+                 status, is_potentially_deceptive
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![
+                row.dba_id, row.entity_id, row.run_id, row.dba_name,
+                row.state_registered, row.status, row.is_potentially_deceptive,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn dba_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM dba_registration WHERE run_id = ?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── customer_beneficiary ──────────────────────────────────────────────
+
+    pub fn insert_customer_beneficiary(&self, row: &CustomerBeneficiaryRow) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO customer_beneficiary (
+                 beneficiary_id, account_id, run_id, beneficiary_name,
+                 beneficiary_relationship, beneficiary_type, beneficiary_share,
+                 is_per_stirpes, trust_for_minor, verified
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            params![
+                row.beneficiary_id, row.account_id, row.run_id, row.beneficiary_name,
+                row.beneficiary_relationship, row.beneficiary_type, row.beneficiary_share,
+                row.is_per_stirpes, row.trust_for_minor, row.verified,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn beneficiary_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer_beneficiary WHERE run_id = ?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── Tier 2 customer/account update helpers ────────────────────────────
+
+    pub fn update_customer_demographics(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+        marital_status: &str,
+        employment_status: &str,
+        annual_income: f64,
+        credit_score: i64,
+        home_ownership: &str,
+        dependents: i64,
+        military_status: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer
+             SET marital_status=?1, employment_status=?2, annual_income=?3,
+                 credit_score=?4, home_ownership=?5, dependents=?6, military_status=?7
+             WHERE run_id=?8 AND customer_id=?9",
+            params![
+                marital_status, employment_status, annual_income,
+                credit_score, home_ownership, dependents, military_status,
+                run_id, customer_id,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_customer_spouse(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+        spouse_customer_id: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE customer SET spouse_customer_id=?1 WHERE run_id=?2 AND customer_id=?3",
+            params![spouse_customer_id, run_id, customer_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_account_type_category(
+        &self,
+        run_id: &str,
+        account_id: &str,
+        category: &str,
+        ownership: &str,
+        tax_type: &str,
+        tax_id: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE account
+             SET account_type_category=?1, ownership_structure=?2,
+                 tax_reporting_type=?3, primary_tax_id=?4
+             WHERE run_id=?5 AND account_id=?6",
+            params![category, ownership, tax_type, tax_id, run_id, account_id],
+        )?;
+        Ok(())
+    }
+
+    /// Count accounts with a specific type category (test helper).
+    pub fn account_type_category_count(&self, run_id: &str, category: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM account WHERE run_id=?1 AND account_type_category=?2",
+            params![run_id, category],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// Count customers with a marital status set (test helper).
+    pub fn marital_status_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM customer WHERE run_id=?1 AND marital_status IS NOT NULL",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// Count rows in account_type_config (test helper).
+    pub fn account_type_config_count(&self) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM account_type_config",
+            [],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// Shell company indicator count for the run.
+    pub fn shell_company_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM business_entity WHERE run_id=?1 AND shell_company_indicators > 0",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// Get customer marital_status column.
+    pub fn get_customer_marital_status(
+        &self,
+        run_id: &str,
+        customer_id: &str,
+    ) -> SimResult<Option<String>> {
+        let result: Option<String> = self.conn.query_row(
+            "SELECT marital_status FROM customer WHERE run_id=?1 AND customer_id=?2",
+            params![run_id, customer_id],
+            |r| r.get(0),
+        ).optional()?.flatten();
+        Ok(result)
+    }
+}

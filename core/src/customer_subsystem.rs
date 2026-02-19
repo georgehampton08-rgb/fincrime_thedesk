@@ -4,7 +4,8 @@ use crate::{
     event::SimEvent,
     rng::SubsystemRng,
     store::{
-        CustomerAddressRow, CustomerIdentityRow, CustomerPhoneRow, SimStore,
+        BusinessEntityRow, CustomerAddressRow, CustomerBeneficiaryRow,
+        CustomerIdentityRow, CustomerPhoneRow, DbaRegistrationRow, SimStore,
     },
     subsystem::SimSubsystem,
     types::{RunId, Tick},
@@ -417,6 +418,255 @@ impl CustomerSubsystem {
             .cloned()
             .unwrap_or_else(|| "low".into())
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 3.5-prep Tier 2: Business entity, EIN, demographics, beneficiary
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Generate a deterministic EIN (Employer Identification Number).
+    /// Format: XX-XXXXXXX where XX is campus prefix based on state.
+    fn generate_ein(&self, state: &str, idx: usize, rng: &mut SubsystemRng) -> String {
+        // IRS campus prefixes by state (simplified mapping)
+        let campus_prefix = match state {
+            "CA" | "HI" => 94,
+            "NY" | "NJ" | "CT" => 13,
+            "TX" | "NM" => 75,
+            "FL" | "GA" | "SC" | "NC" => 59,
+            "IL" | "WI" | "MN" | "MI" => 36,
+            "PA" | "DE" | "MD" | "VA" | "WV" | "DC" => 23,
+            "WA" | "OR" | "AK" => 91,
+            "CO" | "UT" | "AZ" | "NV" => 84,
+            "OH" | "IN" | "KY" => 31,
+            "MA" | "RI" | "VT" | "NH" | "ME" => 4,
+            _ => 62, // default (Philly campus)
+        };
+        let serial = (idx * 7919 + rng.next_u64_below(9000000) as usize) % 10_000_000;
+        format!("{campus_prefix:02}-{serial:07}")
+    }
+
+    /// Generate a business entity for a small_business customer.
+    fn generate_business_entity(
+        &self,
+        customer_id: &str,
+        state: &str,
+        idx: usize,
+        tick: Tick,
+        rng: &mut SubsystemRng,
+    ) -> (BusinessEntityRow, Option<DbaRegistrationRow>) {
+        // Business type distribution
+        let entity_types = &[
+            ("sole_proprietorship", 0.35),
+            ("llc", 0.30),
+            ("s_corp", 0.15),
+            ("c_corp", 0.05),
+            ("partnership", 0.10),
+            ("nonprofit", 0.05),
+        ];
+        let roll = rng.next_f64();
+        let mut cum = 0.0;
+        let mut entity_type = "llc";
+        for (etype, w) in entity_types {
+            cum += w;
+            if roll < cum {
+                entity_type = etype;
+                break;
+            }
+        }
+
+        // NAICS codes (top small-biz sectors)
+        let naics_codes = &[
+            "722511", // restaurants
+            "541110", // legal services
+            "531210", // real estate
+            "621111", // physicians
+            "236220", // construction
+            "811111", // auto repair
+            "812111", // barber shops
+            "453110", // florists
+        ];
+        let naics = naics_codes[rng.next_u64_below(naics_codes.len() as u64) as usize];
+
+        let cash_intensive_naics = ["722511", "812111", "453110", "811111"];
+        let is_cash_intensive = cash_intensive_naics.contains(&naics) as i64;
+
+        let high_risk_naics = ["531210"]; // real estate
+        let is_high_risk = high_risk_naics.contains(&naics) as i64;
+
+        let ein = self.generate_ein(state, idx, rng);
+
+        let annual_revenue = rng.pareto(150_000.0, 1.8).min(5_000_000.0);
+        let employee_count = if entity_type == "sole_proprietorship" {
+            (rng.next_u64_below(3) + 1) as i64
+        } else {
+            (rng.next_u64_below(50) + 1) as i64
+        };
+
+        // Shell indicators: high revenue but few employees
+        let shell_indicators = if annual_revenue > 500_000.0 && employee_count <= 1 {
+            (rng.next_u64_below(3) + 1) as i64  // 1-3 indicators
+        } else {
+            0
+        };
+
+        let legal_name = format!("Business-{idx:04}");
+        let entity_id = format!("ent-{customer_id}");
+
+        let ownership_type = match entity_type {
+            "sole_proprietorship" => "single",
+            "partnership" => "partnership",
+            _ => if rng.next_f64() < 0.7 { "single" } else { "multi" },
+        };
+
+        let owner_count = match ownership_type {
+            "single" => 1,
+            "partnership" => (rng.next_u64_below(3) + 2) as i64,
+            _ => (rng.next_u64_below(4) + 1) as i64,
+        };
+
+        let entity_row = BusinessEntityRow {
+            entity_id: entity_id.clone(),
+            run_id: self.run_id.clone(),
+            customer_id: customer_id.to_string(),
+            legal_name: legal_name.clone(),
+            dba_name: None,
+            entity_type: entity_type.to_string(),
+            ein,
+            state_registration: state.to_string(),
+            formation_date: format!("{}-01-15", SIM_BASE_YEAR - (rng.next_u64_below(10) as i32 + 1)),
+            ownership_type: ownership_type.to_string(),
+            owner_count,
+            naics_code: naics.to_string(),
+            annual_revenue: Some(annual_revenue),
+            employee_count: Some(employee_count),
+            is_cash_intensive,
+            is_high_risk_industry: is_high_risk,
+            shell_company_indicators: shell_indicators,
+        };
+
+        // ~30% get DBA names
+        let dba_row = if rng.next_f64() < 0.30 {
+            let dba_name = format!("DBA-{idx:04}-Services");
+            // ~5% of DBAs are "potentially deceptive" (name contains bank/financial)
+            let is_deceptive = rng.next_f64() < 0.05;
+            Some(DbaRegistrationRow {
+                dba_id: format!("dba-{customer_id}"),
+                entity_id: entity_id.clone(),
+                run_id: self.run_id.clone(),
+                dba_name,
+                state_registered: state.to_string(),
+                status: "active".to_string(),
+                is_potentially_deceptive: is_deceptive as i64,
+            })
+        } else {
+            None
+        };
+
+        (entity_row, dba_row)
+    }
+
+    /// Assign marital status based on age and segment.
+    fn assign_marital_status(&self, age: i64, rng: &mut SubsystemRng) -> &'static str {
+        let married_rate = if age < 25 {
+            0.12
+        } else if age < 35 {
+            0.35
+        } else if age < 50 {
+            0.55
+        } else if age < 65 {
+            0.60
+        } else {
+            0.45  // widowed/divorced more common
+        };
+
+        let roll = rng.next_f64();
+        if roll < married_rate {
+            "married"
+        } else if roll < married_rate + 0.05 {
+            "divorced"
+        } else if roll < married_rate + 0.07 && age >= 55 {
+            "widowed"
+        } else {
+            "single"
+        }
+    }
+
+    /// Assign employment status based on segment.
+    fn assign_employment(&self, seg: &SegmentConfig, rng: &mut SubsystemRng) -> (&'static str, f64, i64, &'static str) {
+        // (employment_status, annual_income, credit_score, home_ownership)
+        let employment = if seg.id == "small_business" {
+            "self_employed"
+        } else if seg.id == "premium" {
+            if rng.next_f64() < 0.9 { "employed" } else { "retired" }
+        } else {
+            let r = rng.next_f64();
+            if r < 0.70 { "employed" }
+            else if r < 0.85 { "self_employed" }
+            else if r < 0.92 { "retired" }
+            else if r < 0.97 { "unemployed" }
+            else { "student" }
+        };
+
+        // Annual income correlated with segment
+        let base_income = match seg.id.as_str() {
+            "premium" => 120_000.0 + rng.pareto(80_000.0, 2.0).min(400_000.0),
+            "small_business" => 60_000.0 + rng.pareto(40_000.0, 1.8).min(200_000.0),
+            _ => 30_000.0 + rng.pareto(20_000.0, 2.5).min(80_000.0),
+        };
+
+        // Credit score: 300-850 range, correlated with segment
+        let credit_base = match seg.id.as_str() {
+            "premium" => 720,
+            "small_business" => 680,
+            _ => 640,
+        };
+        let credit_jitter = (rng.next_f64() * 120.0 - 60.0) as i64;
+        let credit_score = (credit_base + credit_jitter).max(300).min(850);
+
+        // Home ownership
+        let home = match seg.id.as_str() {
+            "premium" => if rng.next_f64() < 0.85 { "own" } else { "rent" },
+            _ => if rng.next_f64() < 0.45 { "own" } else { "rent" },
+        };
+
+        (employment, base_income, credit_score, home)
+    }
+
+    /// Generate a beneficiary for a married or POD account customer.
+    fn generate_beneficiary(
+        &self,
+        account_id: &str,
+        customer_id: &str,
+        marital_status: &str,
+        rng: &mut SubsystemRng,
+    ) -> Option<CustomerBeneficiaryRow> {
+        // Married customers: ~80% get a beneficiary
+        // Single/divorced: ~20% get a beneficiary
+        let bene_rate = if marital_status == "married" { 0.80 } else { 0.20 };
+        if rng.next_f64() >= bene_rate {
+            return None;
+        }
+
+        let (relationship, name) = if marital_status == "married" {
+            ("spouse", format!("Spouse-of-{customer_id}"))
+        } else {
+            let choices = &[("child", "Child"), ("parent", "Parent"), ("sibling", "Sibling")];
+            let idx = rng.next_u64_below(choices.len() as u64) as usize;
+            (choices[idx].0, format!("{}-of-{customer_id}", choices[idx].1))
+        };
+
+        Some(CustomerBeneficiaryRow {
+            beneficiary_id: format!("ben-{customer_id}"),
+            account_id: account_id.to_string(),
+            run_id: self.run_id.clone(),
+            beneficiary_name: name,
+            beneficiary_relationship: relationship.to_string(),
+            beneficiary_type: "primary".to_string(),
+            beneficiary_share: 1.0,
+            is_per_stirpes: 0,
+            trust_for_minor: 0,
+            verified: if marital_status == "married" { 1 } else { 0 },
+        })
+    }
 }
 
 impl SimSubsystem for CustomerSubsystem {
@@ -497,6 +747,57 @@ impl SimSubsystem for CustomerSubsystem {
                     )?;
                 }
 
+                // ── Phase 3.5-prep Tier 2: Demographics, business entity, beneficiary
+                let age = identity_row.age_at_open;
+                let marital_status = self.assign_marital_status(age, rng);
+                let (employment_status, annual_income, credit_score, home_ownership) =
+                    self.assign_employment(seg, rng);
+
+                let dependents = if marital_status == "married" {
+                    rng.next_u64_below(4) as i64
+                } else {
+                    rng.next_u64_below(2) as i64
+                };
+                let military = if rng.next_f64() < 0.06 { "veteran" }
+                    else if rng.next_f64() < 0.01 { "active_duty" }
+                    else { "civilian" };
+
+                self.store.update_customer_demographics(
+                    &self.run_id, &customer.customer_id,
+                    marital_status, employment_status, annual_income,
+                    credit_score, home_ownership, dependents, military,
+                )?;
+
+                // Account type category
+                let acct_category = if seg.id == "small_business" {
+                    "business_checking"
+                } else {
+                    "checking_individual"
+                };
+                let tax_id = ssn_full.clone();
+                self.store.update_account_type_category(
+                    &self.run_id, &account_id,
+                    acct_category, "sole", "1099", &tax_id,
+                )?;
+
+                // Business entity for small_business segment
+                if seg.id == "small_business" {
+                    let (entity_row, dba_row) = self.generate_business_entity(
+                        &customer.customer_id, &state_code, onboarded, tick, rng,
+                    );
+                    self.store.insert_business_entity(&entity_row)?;
+                    if let Some(dba) = dba_row {
+                        self.store.insert_dba_registration(&dba)?;
+                    }
+                }
+
+                // Beneficiary (for married + POD-eligible customers)
+                if let Some(bene) = self.generate_beneficiary(
+                    &account_id, &customer.customer_id, marital_status, rng,
+                ) {
+                    self.store.insert_customer_beneficiary(&bene)?;
+                }
+
                 // Emit identity created event
                 out_events.push(SimEvent::CustomerIdentityCreated {
                     tick,
@@ -515,7 +816,7 @@ impl SimSubsystem for CustomerSubsystem {
 
                 onboarded += 1;
             }
-            log::info!("tick=0 customer: onboarded {onboarded} customers with identity data");
+            log::info!("tick=0 customer: onboarded {onboarded} customers with identity + demographics");
             return Ok(out_events);
         }
 
