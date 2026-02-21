@@ -1,3 +1,4 @@
+pub mod card_dispute_subsystem;
 pub mod churn_subsystem;
 pub mod clock;
 pub mod command;
@@ -9,6 +10,7 @@ pub mod economics_subsystem;
 pub mod engine;
 pub mod error;
 pub mod event;
+pub mod incident_subsystem;
 pub mod macro_subsystem;
 pub mod offer_subsystem;
 pub mod ops_specialist_role;

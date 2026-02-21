@@ -80,6 +80,11 @@ impl RngBank {
     pub fn for_subsystem(&self, slot: SubsystemSlot) -> SubsystemRng {
         SubsystemRng::new(self.master_seed, slot as u64).with_name(slot.name())
     }
+
+    pub fn for_subsystem_at_tick(&self, slot: SubsystemSlot, tick: u64) -> SubsystemRng {
+        let tick_seed = self.master_seed ^ tick.wrapping_mul(0x517c_c1b7_2722_0a95);
+        SubsystemRng::new(tick_seed, slot as u64).with_name(slot.name())
+    }
 }
 
 /// Stable subsystem slot assignments.
@@ -103,6 +108,8 @@ pub enum SubsystemSlot {
     RiskAppetite = 12,       // Phase 2.6
     PaymentHub = 13,         // Phase 3.1
     Reconciliation = 14,     // Phase 3.2
+    Incident = 15,           // Phase 3.3
+    CardDispute = 16,        // Phase 3.4
                              // Add new subsystems here — append only.
 }
 
@@ -124,6 +131,8 @@ impl SubsystemSlot {
             Self::RiskAppetite => "risk_appetite",
             Self::PaymentHub => "payment_hub",
             Self::Reconciliation => "reconciliation",
+            Self::Incident => "incident",
+            Self::CardDispute => "card_dispute",
         }
     }
 }

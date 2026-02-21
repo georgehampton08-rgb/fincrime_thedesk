@@ -83,6 +83,10 @@ impl SimStore {
             .execute_batch(include_str!("../../migrations/017_custodial_trust_international.sql"))?;
         self.conn
             .execute_batch(include_str!("../../migrations/018_risk_scoring_joint_ownership.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/019_incident_outage.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../migrations/020_card_disputes.sql"))?;
         Ok(())
     }
 
@@ -3470,6 +3474,399 @@ impl SimStore {
             .map_err(Into::into)
     }
 
+    // ── Phase 3.4: Card Disputes ──────────────────────────────────────────────
+
+    pub fn get_settled_authorizations_in_window(
+        &self,
+        run_id: &str,
+        start_tick: i64,
+        end_tick: i64,
+    ) -> SimResult<Vec<AuthorizationRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT authorization_id, account_id, merchant_name, merchant_category,
+                    amount, tick_authorized, status, tick_cleared, cleared_amount,
+                    tick_settled, interchange_fee
+             FROM authorization
+             WHERE run_id = ? AND status = 'settled'
+               AND tick_settled >= ? AND tick_settled <= ?
+             ORDER BY tick_settled"
+        )?;
+
+        let rows = stmt.query_map(params![run_id, start_tick, end_tick], |row| {
+            Ok(AuthorizationRow {
+                authorization_id: row.get(0)?,
+                account_id: row.get(1)?,
+                merchant_name: row.get(2)?,
+                merchant_category: row.get(3)?,
+                amount: row.get(4)?,
+                tick_authorized: row.get(5)?,
+                status: row.get(6)?,
+                tick_cleared: row.get(7)?,
+                cleared_amount: row.get(8)?,
+                tick_settled: row.get(9)?,
+                interchange_fee: row.get(10)?,
+            })
+        })?;
+
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn insert_dispute(
+        &self,
+        run_id: &str,
+        dispute_id: &str,
+        authorization_id: &str,
+        account_id: &str,
+        customer_id: &str,
+        tick_filed: i64,
+        amount: f64,
+        merchant_name: &str,
+        merchant_category: &str,
+        reason: &str,
+        friendly_fraud_score: f64,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO card_dispute (
+                dispute_id, run_id, authorization_id, account_id, customer_id,
+                tick_filed, amount, merchant_name, merchant_category, reason,
+                status, friendly_fraud_score
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'investigating', ?11)",
+            params![
+                dispute_id, run_id, authorization_id, account_id, customer_id,
+                tick_filed, amount, merchant_name, merchant_category, reason,
+                friendly_fraud_score
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_dispute(&self, run_id: &str, dispute_id: &str) -> SimResult<DisputeRow> {
+        self.conn.query_row(
+            "SELECT dispute_id, authorization_id, account_id, customer_id, tick_filed, tick_resolved,
+                    amount, merchant_name, merchant_category, reason, status, outcome,
+                    provisional_credit_issued, provisional_credit_amount, friendly_fraud_score, chargeback_issued
+             FROM card_dispute
+             WHERE run_id = ? AND dispute_id = ?",
+            params![run_id, dispute_id],
+            map_dispute_row,
+        ).map_err(Into::into)
+    }
+
+    pub fn get_active_disputes(&self, run_id: &str) -> SimResult<Vec<DisputeRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT dispute_id, authorization_id, account_id, customer_id, tick_filed, tick_resolved,
+                    amount, merchant_name, merchant_category, reason, status, outcome,
+                    provisional_credit_issued, provisional_credit_amount, friendly_fraud_score, chargeback_issued
+             FROM card_dispute
+             WHERE run_id = ? AND status NOT LIKE 'resolved_%' AND status != 'closed'
+             ORDER BY tick_filed"
+        )?;
+
+        let rows = stmt.query_map(params![run_id], map_dispute_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn update_dispute_status(
+        &self,
+        run_id: &str,
+        dispute_id: &str,
+        new_status: &str,
+    ) -> SimResult<()> {
+        // Get current status for timeline
+        let old_status: String = self.conn.query_row(
+            "SELECT status FROM card_dispute WHERE run_id = ? AND dispute_id = ?",
+            params![run_id, dispute_id],
+            |row| row.get(0),
+        )?;
+
+        // Update status
+        self.conn.execute(
+            "UPDATE card_dispute SET status = ? WHERE run_id = ? AND dispute_id = ?",
+            params![new_status, run_id, dispute_id],
+        )?;
+
+        // Get current tick from dispute
+        let tick: i64 = self.conn.query_row(
+            "SELECT tick_filed FROM card_dispute WHERE run_id = ? AND dispute_id = ?",
+            params![run_id, dispute_id],
+            |row| row.get(0),
+        )?;
+
+        // Record in timeline
+        self.conn.execute(
+            "INSERT INTO dispute_timeline (run_id, dispute_id, tick, from_status, to_status)
+             VALUES (?, ?, ?, ?, ?)",
+            params![run_id, dispute_id, tick, &old_status, new_status],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn get_account_customer_id(&self, run_id: &str, account_id: &str) -> SimResult<String> {
+        self.conn
+            .query_row(
+                "SELECT customer_id FROM account WHERE run_id = ? AND account_id = ?",
+                params![run_id, account_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+    }
+
+    // ── Friendly fraud indicators ─────────────────────────────────────────────
+
+    pub fn count_disputes_in_window(
+        &self,
+        run_id: &str,
+        account_id: &str,
+        start_tick: i64,
+        end_tick: i64,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND account_id = ? AND tick_filed >= ? AND tick_filed <= ?",
+            params![run_id, account_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn count_high_value_disputes(
+        &self,
+        run_id: &str,
+        account_id: &str,
+        threshold: f64,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND account_id = ? AND amount >= ?",
+            params![run_id, account_id, threshold],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn count_account_transactions_in_window(
+        &self,
+        run_id: &str,
+        account_id: &str,
+        start_tick: i64,
+        end_tick: i64,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions
+             WHERE run_id = ? AND account_id = ? AND tick >= ? AND tick <= ?",
+            params![run_id, account_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn count_repeat_merchant_disputes(
+        &self,
+        run_id: &str,
+        account_id: &str,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM (
+                SELECT merchant_name FROM card_dispute
+                WHERE run_id = ? AND account_id = ?
+                GROUP BY merchant_name HAVING COUNT(*) > 1
+            )",
+            params![run_id, account_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn get_account_age(&self, run_id: &str, account_id: &str, current_tick: i64) -> SimResult<i64> {
+        let open_tick: i64 = self.conn.query_row(
+            "SELECT open_tick FROM account WHERE run_id = ? AND account_id = ?",
+            params![run_id, account_id],
+            |row| row.get(0),
+        )?;
+        Ok(current_tick - open_tick)
+    }
+
+    // ── Dispute lifecycle methods ─────────────────────────────────────────────
+
+    pub fn get_disputes_needing_provisional_credit(
+        &self,
+        run_id: &str,
+        tick: i64,
+        threshold_days: i64,
+    ) -> SimResult<Vec<DisputeRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT dispute_id, authorization_id, account_id, customer_id, tick_filed, tick_resolved,
+                    amount, merchant_name, merchant_category, reason, status, outcome,
+                    provisional_credit_issued, provisional_credit_amount, friendly_fraud_score, chargeback_issued
+             FROM card_dispute
+             WHERE run_id = ? AND status = 'investigating'
+               AND provisional_credit_issued = 0
+               AND (? - tick_filed) >= ?"
+        )?;
+
+        let rows = stmt.query_map(params![run_id, tick, threshold_days], map_dispute_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn mark_provisional_credit_issued(
+        &self,
+        run_id: &str,
+        dispute_id: &str,
+        amount: f64,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE card_dispute SET provisional_credit_issued = 1, provisional_credit_amount = ?
+             WHERE run_id = ? AND dispute_id = ?",
+            params![amount, run_id, dispute_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn mark_dispute_resolved(
+        &self,
+        run_id: &str,
+        dispute_id: &str,
+        tick: i64,
+        outcome: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE card_dispute SET tick_resolved = ?, outcome = ?, decision_tick = ?
+             WHERE run_id = ? AND dispute_id = ?",
+            params![tick, outcome, tick, run_id, dispute_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn mark_chargeback_issued(&self, run_id: &str, dispute_id: &str) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE card_dispute SET chargeback_issued = 1 WHERE run_id = ? AND dispute_id = ?",
+            params![run_id, dispute_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_dispute_config(&self, reason: &str) -> SimResult<DisputeConfigRow> {
+        self.conn
+            .query_row(
+                "SELECT reason, label, win_probability, investigation_duration_ticks, merchant_category_risk
+                 FROM dispute_decision_config WHERE reason = ?",
+                params![reason],
+                |row| {
+                    Ok(DisputeConfigRow {
+                        reason: row.get(0)?,
+                        label: row.get(1)?,
+                        win_probability: row.get(2)?,
+                        investigation_duration_ticks: row.get(3)?,
+                        merchant_category_risk: row.get(4)?,
+                    })
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn compute_chargeback_metrics(
+        &self,
+        run_id: &str,
+        start_tick: i64,
+        end_tick: i64,
+    ) -> SimResult<ChargebackMetrics> {
+        let disputes_filed: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute WHERE run_id = ? AND tick_filed >= ? AND tick_filed <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let chargebacks: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND chargeback_issued = 1 AND tick_resolved >= ? AND tick_resolved <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let resolved: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND tick_resolved >= ? AND tick_resolved <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let customer_wins: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND outcome = 'accepted' AND tick_resolved >= ? AND tick_resolved <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let total_amount: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0.0) FROM card_dispute
+             WHERE run_id = ? AND tick_filed >= ? AND tick_filed <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let chargeback_amount: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0.0) FROM card_dispute
+             WHERE run_id = ? AND chargeback_issued = 1 AND tick_resolved >= ? AND tick_resolved <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let fraud_detected: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute
+             WHERE run_id = ? AND friendly_fraud_score > 0.70 AND tick_filed >= ? AND tick_filed <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+
+        let win_rate = if resolved > 0 {
+            customer_wins as f64 / resolved as f64
+        } else {
+            0.0
+        };
+
+        Ok(ChargebackMetrics {
+            disputes_filed,
+            chargebacks_issued: chargebacks,
+            disputes_resolved: resolved,
+            customer_wins,
+            merchant_wins: resolved - customer_wins,
+            total_disputed_amount: total_amount,
+            total_chargeback_amount: chargeback_amount,
+            win_rate,
+            friendly_fraud_detected: fraud_detected,
+        })
+    }
+
+    pub fn insert_chargeback_metrics(
+        &self,
+        run_id: &str,
+        tick: i64,
+        metrics: &ChargebackMetrics,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO chargeback_metrics (
+                run_id, tick, disputes_filed_7d, chargebacks_issued_7d, disputes_resolved_7d,
+                customer_wins_7d, merchant_wins_7d, total_disputed_amount_7d,
+                total_chargeback_amount_7d, win_rate_7d, friendly_fraud_detected_7d
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                run_id,
+                tick,
+                metrics.disputes_filed,
+                metrics.chargebacks_issued,
+                metrics.disputes_resolved,
+                metrics.customer_wins,
+                metrics.merchant_wins,
+                metrics.total_disputed_amount,
+                metrics.total_chargeback_amount,
+                metrics.win_rate,
+                metrics.friendly_fraud_detected
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn payment_batch_count(
         &self,
         run_id: &str,
@@ -5132,6 +5529,50 @@ pub struct CustomerRelationshipRow {
     pub is_suspicious: i64,
 }
 
+// ── Phase 3.4: Card Dispute row types ────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct DisputeRow {
+    pub dispute_id: String,
+    pub authorization_id: String,
+    pub account_id: String,
+    pub customer_id: String,
+    pub tick_filed: i64,
+    pub tick_resolved: Option<i64>,
+    pub amount: f64,
+    pub merchant_name: String,
+    pub merchant_category: String,
+    pub reason: String,
+    pub status: String,
+    pub outcome: Option<String>,
+    pub provisional_credit_issued: bool,
+    pub provisional_credit_amount: f64,
+    pub friendly_fraud_score: f64,
+    pub chargeback_issued: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DisputeConfigRow {
+    pub reason: String,
+    pub label: String,
+    pub win_probability: f64,
+    pub investigation_duration_ticks: i64,
+    pub merchant_category_risk: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChargebackMetrics {
+    pub disputes_filed: i64,
+    pub chargebacks_issued: i64,
+    pub disputes_resolved: i64,
+    pub customer_wins: i64,
+    pub merchant_wins: i64,
+    pub total_disputed_amount: f64,
+    pub total_chargeback_amount: f64,
+    pub win_rate: f64,
+    pub friendly_fraud_detected: i64,
+}
+
 impl SimStore {
     // ── customer_risk_score ───────────────────────────────────────────────
 
@@ -5284,4 +5725,426 @@ impl SimStore {
             |r| r.get(0),
         )?)
     }
+
+    // ── Phase 3.3: Incident & Outage store methods ─────────────────────────
+
+    pub fn list_system_components(
+        &self,
+        _run_id: &str,
+    ) -> SimResult<Vec<crate::incident_subsystem::SystemComponentRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT component_id, label, category, technology_tier, status,
+                    mtbf_days, mttr_hours, last_incident_tick,
+                    upgrade_in_progress, upgrade_target_tier, upgrade_complete_tick
+             FROM system_component
+             ORDER BY component_id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(crate::incident_subsystem::SystemComponentRow {
+                component_id: r.get(0)?,
+                label: r.get(1)?,
+                category: r.get(2)?,
+                technology_tier: r.get(3)?,
+                status: r.get(4)?,
+                mtbf_days: r.get(5)?,
+                mttr_hours: r.get(6)?,
+                last_incident_tick: r.get(7)?,
+                upgrade_in_progress: r.get::<_, i32>(8)? != 0,
+                upgrade_target_tier: r.get(9)?,
+                upgrade_complete_tick: r.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_system_component(
+        &self,
+        component_id: &str,
+    ) -> SimResult<crate::incident_subsystem::SystemComponentRow> {
+        Ok(self.conn.query_row(
+            "SELECT component_id, label, category, technology_tier, status,
+                    mtbf_days, mttr_hours, last_incident_tick,
+                    upgrade_in_progress, upgrade_target_tier, upgrade_complete_tick
+             FROM system_component WHERE component_id=?1",
+            params![component_id],
+            |r| {
+                Ok(crate::incident_subsystem::SystemComponentRow {
+                    component_id: r.get(0)?,
+                    label: r.get(1)?,
+                    category: r.get(2)?,
+                    technology_tier: r.get(3)?,
+                    status: r.get(4)?,
+                    mtbf_days: r.get(5)?,
+                    mttr_hours: r.get(6)?,
+                    last_incident_tick: r.get(7)?,
+                    upgrade_in_progress: r.get::<_, i32>(8)? != 0,
+                    upgrade_target_tier: r.get(9)?,
+                    upgrade_complete_tick: r.get(10)?,
+                })
+            },
+        )?)
+    }
+
+    pub fn update_component_status(
+        &self,
+        component_id: &str,
+        new_status: &str,
+        tick: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE system_component SET status=?1, last_incident_tick=?2
+             WHERE component_id=?3",
+            params![new_status, tick, component_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_incident(
+        &self,
+        run_id: &str,
+        incident_id: &str,
+        component_id: &str,
+        tick_created: Tick,
+        severity: &str,
+        description: &str,
+        sla_deadline_tick: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO incident (incident_id, run_id, component_id, tick_created,
+                severity, description, sla_deadline_tick)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![incident_id, run_id, component_id, tick_created,
+                    severity, description, sla_deadline_tick],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_open_incidents(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Vec<crate::incident_subsystem::IncidentRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT incident_id, run_id, component_id, tick_created, tick_resolved,
+                    severity, status, description, sla_deadline_tick, sla_breached,
+                    estimated_revenue_impact
+             FROM incident
+             WHERE run_id=?1 AND status='open'
+             ORDER BY incident_id",
+        )?;
+        let rows = stmt.query_map(params![run_id], |r| {
+            Ok(crate::incident_subsystem::IncidentRow {
+                incident_id: r.get(0)?,
+                run_id: r.get(1)?,
+                component_id: r.get(2)?,
+                tick_created: r.get(3)?,
+                tick_resolved: r.get(4)?,
+                severity: r.get(5)?,
+                status: r.get(6)?,
+                description: r.get(7)?,
+                sla_deadline_tick: r.get(8)?,
+                sla_breached: r.get::<_, i32>(9)? != 0,
+                estimated_revenue_impact: r.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_active_incidents(
+        &self,
+        run_id: &str,
+    ) -> SimResult<Vec<crate::incident_subsystem::IncidentRow>> {
+        // Same as open but could include sla_breached too
+        self.get_open_incidents(run_id)
+    }
+
+    pub fn resolve_incident(
+        &self,
+        run_id: &str,
+        incident_id: &str,
+        tick_resolved: Tick,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE incident SET status='resolved', tick_resolved=?1
+             WHERE run_id=?2 AND incident_id=?3",
+            params![tick_resolved, run_id, incident_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn mark_incident_sla_breached(
+        &self,
+        run_id: &str,
+        incident_id: &str,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "UPDATE incident SET sla_breached=1, status='sla_breached'
+             WHERE run_id=?1 AND incident_id=?2",
+            params![run_id, incident_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_incident_impact(
+        &self,
+        run_id: &str,
+        incident_id: &str,
+        tick: Tick,
+        impact_type: &str,
+        affected_component: &str,
+        impact_value: f64,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT INTO incident_impact (run_id, incident_id, tick, impact_type,
+                affected_component, impact_value)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![run_id, incident_id, tick, impact_type,
+                    affected_component, impact_value],
+        )?;
+        Ok(())
+    }
+
+    /// Downstream query: get the maximum impact value for a given type at a tick.
+    pub fn get_impact_value(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        impact_type: &str,
+    ) -> SimResult<f64> {
+        let val: f64 = self.conn.query_row(
+            "SELECT COALESCE(MAX(impact_value), 0.0)
+             FROM incident_impact
+             WHERE run_id=?1 AND tick=?2 AND impact_type=?3",
+            params![run_id, tick, impact_type],
+            |r| r.get(0),
+        )?;
+        Ok(val)
+    }
+
+    /// Downstream query: check if any impact of the given type is active at tick.
+    pub fn has_active_impact(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        impact_type: &str,
+    ) -> SimResult<bool> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*)
+             FROM incident_impact
+             WHERE run_id=?1 AND tick=?2 AND impact_type=?3",
+            params![run_id, tick, impact_type],
+            |r| r.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    pub fn insert_system_metrics(
+        &self,
+        run_id: &str,
+        tick: Tick,
+        component_id: &str,
+        uptime_pct: f64,
+        incident_count: i32,
+        avg_mttr_hours: f64,
+        sla_breach_count: i32,
+    ) -> SimResult<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO system_metrics
+                (run_id, tick, component_id, uptime_pct, incident_count,
+                 avg_mttr_hours, sla_breach_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![run_id, tick, component_id, uptime_pct,
+                    incident_count, avg_mttr_hours, sla_breach_count],
+        )?;
+        Ok(())
+    }
+
+    /// Compute uptime % and incident stats for a component over a tick window.
+    pub fn compute_component_uptime(
+        &self,
+        run_id: &str,
+        component_id: &str,
+        start_tick: Tick,
+        end_tick: Tick,
+    ) -> SimResult<(f64, i32, f64, i32)> {
+        let window = (end_tick - start_tick).max(1) as f64;
+
+        // Count incidents in window
+        let incident_count: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM incident
+             WHERE run_id=?1 AND component_id=?2
+             AND tick_created >= ?3 AND tick_created <= ?4",
+            params![run_id, component_id, start_tick, end_tick],
+            |r| r.get(0),
+        )?;
+
+        // Total down ticks (ticks where incident was open)
+        let down_ticks: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(
+                CASE
+                    WHEN tick_resolved IS NOT NULL THEN MIN(tick_resolved, ?4) - MAX(tick_created, ?3)
+                    ELSE ?4 - MAX(tick_created, ?3)
+                END
+             ), 0.0)
+             FROM incident
+             WHERE run_id=?1 AND component_id=?2
+             AND tick_created <= ?4
+             AND (tick_resolved IS NULL OR tick_resolved >= ?3)",
+            params![run_id, component_id, start_tick, end_tick],
+            |r| r.get(0),
+        )?;
+
+        let uptime_pct = ((window - down_ticks) / window * 100.0).max(0.0).min(100.0);
+
+        // Average MTTR (resolved only)
+        let avg_mttr: f64 = self.conn.query_row(
+            "SELECT COALESCE(AVG(tick_resolved - tick_created), 0.0)
+             FROM incident
+             WHERE run_id=?1 AND component_id=?2
+             AND tick_resolved IS NOT NULL
+             AND tick_created >= ?3 AND tick_created <= ?4",
+            params![run_id, component_id, start_tick, end_tick],
+            |r| r.get(0),
+        )?;
+
+        // SLA breaches
+        let sla_breaches: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM incident
+             WHERE run_id=?1 AND component_id=?2
+             AND sla_breached=1
+             AND tick_created >= ?3 AND tick_created <= ?4",
+            params![run_id, component_id, start_tick, end_tick],
+            |r| r.get(0),
+        )?;
+
+        Ok((uptime_pct, incident_count, avg_mttr, sla_breaches))
+    }
+
+    // ── Incident test helpers ────────────────────────────────────────────────
+
+    pub fn incident_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM incident WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn resolved_incident_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM incident WHERE run_id=?1 AND status='resolved'",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn sla_breached_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM incident WHERE run_id=?1 AND sla_breached=1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn incident_impact_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM incident_impact WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn system_metrics_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM system_metrics WHERE run_id=?1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn system_component_count(&self) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM system_component",
+            [],
+            |r| r.get(0),
+        )?)
+    }
+
+    // ── Phase 3.4: Card Dispute test helpers ──────────────────────────────────
+
+    pub fn dispute_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute WHERE run_id = ?",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn chargeback_count(&self, run_id: &str) -> SimResult<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM card_dispute WHERE run_id = ? AND chargeback_issued = 1",
+            params![run_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    pub fn get_disputes_by_status(&self, run_id: &str, status: &str) -> SimResult<Vec<DisputeRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT dispute_id, authorization_id, account_id, customer_id, tick_filed, tick_resolved,
+                    amount, merchant_name, merchant_category, reason, status, outcome,
+                    provisional_credit_issued, provisional_credit_amount, friendly_fraud_score, chargeback_issued
+             FROM card_dispute
+             WHERE run_id = ? AND status = ?"
+        )?;
+
+        let rows = stmt.query_map(params![run_id, status], map_dispute_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn sum_chargebacks_in_window(
+        &self,
+        run_id: &str,
+        start_tick: i64,
+        end_tick: i64,
+    ) -> SimResult<f64> {
+        let sum: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0.0) FROM card_dispute
+             WHERE run_id = ? AND chargeback_issued = 1
+               AND tick_resolved >= ? AND tick_resolved <= ?",
+            params![run_id, start_tick, end_tick],
+            |row| row.get(0),
+        )?;
+        Ok(sum)
+    }
+}
+
+
+// ── Phase 3.4: Card Dispute row mapper ───────────────────────────────
+
+fn map_dispute_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DisputeRow> {
+    Ok(DisputeRow {
+        dispute_id: row.get(0)?,
+        authorization_id: row.get(1)?,
+        account_id: row.get(2)?,
+        customer_id: row.get(3)?,
+        tick_filed: row.get(4)?,
+        tick_resolved: row.get(5)?,
+        amount: row.get(6)?,
+        merchant_name: row.get(7)?,
+        merchant_category: row.get(8)?,
+        reason: row.get(9)?,
+        status: row.get(10)?,
+        outcome: row.get(11)?,
+        provisional_credit_issued: row.get::<_, i32>(12)? != 0,
+        provisional_credit_amount: row.get(13)?,
+        friendly_fraud_score: row.get(14)?,
+        chargeback_issued: row.get::<_, i32>(15)? != 0,
+    })
 }

@@ -254,6 +254,105 @@ pub enum SimEvent {
         full_number: String,
         customer_count: i64,
     },
+
+    // ── Phase 3.3: Incident & Outage events ──────────────────────────────
+    IncidentCreated {
+        tick: Tick,
+        incident_id: String,
+        component: String,
+        severity: String,
+        description: String,
+    },
+    IncidentResolved {
+        tick: Tick,
+        incident_id: String,
+        component: String,
+        duration_ticks: Tick,
+    },
+    IncidentSLABreach {
+        tick: Tick,
+        incident_id: String,
+        severity: String,
+        ticks_overdue: Tick,
+    },
+    ComponentStatusChanged {
+        tick: Tick,
+        component_id: String,
+        old_status: String,
+        new_status: String,
+        reason: String,
+    },
+    ComponentUpgradeStarted {
+        tick: Tick,
+        component: String,
+        from_tier: String,
+        to_tier: String,
+        cost: f64,
+        duration_ticks: Tick,
+    },
+    ComponentUpgradeCompleted {
+        tick: Tick,
+        component: String,
+        new_tier: String,
+    },
+    CascadingImpactApplied {
+        tick: Tick,
+        incident_id: String,
+        impact_type: String,
+        affected_component: String,
+        impact_value: f64,
+    },
+    SystemMetricsComputed {
+        tick: Tick,
+        component_id: String,
+        uptime_pct_30d: f64,
+        total_incidents_30d: i64,
+    },
+    // ── Phase 3.4: Card Dispute & Chargeback events ───────────────────────────
+    DisputeFiled {
+        tick: Tick,
+        dispute_id: String,
+        authorization_id: String,
+        customer_id: String,
+        amount: f64,
+        reason: String,
+    },
+    DisputeStatusChanged {
+        tick: Tick,
+        dispute_id: String,
+        old_status: String,
+        new_status: String,
+    },
+    ProvisionalCreditIssued {
+        tick: Tick,
+        dispute_id: String,
+        account_id: String,
+        amount: f64,
+    },
+    DisputeResolved {
+        tick: Tick,
+        dispute_id: String,
+        outcome: String,
+        customer_won: bool,
+    },
+    ChargebackIssued {
+        tick: Tick,
+        dispute_id: String,
+        amount: f64,
+        merchant_name: String,
+    },
+    FriendlyFraudDetected {
+        tick: Tick,
+        dispute_id: String,
+        customer_id: String,
+        fraud_score: f64,
+    },
+    ChargebackMetricsComputed {
+        tick: Tick,
+        disputes_filed_7d: i64,
+        win_rate_7d: f64,
+        chargeback_amount_7d: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

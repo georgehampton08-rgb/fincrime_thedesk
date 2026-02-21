@@ -78,6 +78,7 @@ impl SimEngine {
         let store_risk_appetite = store.reopen()?;
         let store_payment_hub = store.reopen()?;
         let store_recon = store.reopen()?;
+        let store_card_dispute = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -139,6 +140,14 @@ impl SimEngine {
                 store_recon,
             )),
         );
+        // Phase 3.4: CardDispute (after Reconciliation, before Complaint)
+        engine.register(
+            SubsystemSlot::CardDispute,
+            Box::new(crate::card_dispute_subsystem::CardDisputeSubsystem::new(
+                run_id.clone(),
+                store_card_dispute,
+            )),
+        );
         engine.register(
             SubsystemSlot::Complaint,
             Box::new(crate::complaint_subsystem::ComplaintSubsystem::new(
@@ -191,13 +200,24 @@ impl SimEngine {
 
     /// Test-only build using in-memory config.
     pub fn build_test(run_id: RunId, seed: u64) -> SimResult<Self> {
+        let config = crate::config::SimConfig::default_test();
+        Self::build_test_with_config(run_id, seed, config)
+    }
+
+    /// Test-only build with incident subsystem enabled.
+    pub fn build_test_with_incidents(run_id: RunId, seed: u64) -> SimResult<Self> {
+        let mut config = crate::config::SimConfig::default_test();
+        config.incident.enabled = true;
+        Self::build_test_with_config(run_id, seed, config)
+    }
+
+    fn build_test_with_config(run_id: RunId, seed: u64, config: crate::config::SimConfig) -> SimResult<Self> {
         // Use a temp file so reopen() works (in-memory doesn't share across connections)
         let temp_path = format!("./test_{}.db", uuid::Uuid::new_v4());
         let store = SimStore::open(&temp_path)?;
         store.migrate()?;
         store.insert_run(&run_id, seed, "0.1.0-test")?;
 
-        let config = crate::config::SimConfig::default_test();
         let store_customer = store.reopen()?;
         let store_txn = store.reopen()?;
         let store_complaint = store.reopen()?;
@@ -209,6 +229,8 @@ impl SimEngine {
         let store_risk_appetite = store.reopen()?;
         let store_payment_hub = store.reopen()?;
         let store_recon = store.reopen()?;
+        let store_incident = store.reopen()?;
+        let store_card_dispute = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -265,6 +287,14 @@ impl SimEngine {
                 store_recon,
             )),
         );
+        // Phase 3.4: CardDispute (after Reconciliation, before Complaint)
+        engine.register(
+            SubsystemSlot::CardDispute,
+            Box::new(crate::card_dispute_subsystem::CardDisputeSubsystem::new(
+                run_id.clone(),
+                store_card_dispute,
+            )),
+        );
         engine.register(
             SubsystemSlot::Complaint,
             Box::new(crate::complaint_subsystem::ComplaintSubsystem::new(
@@ -305,9 +335,18 @@ impl SimEngine {
         engine.register(
             SubsystemSlot::RiskAppetite,
             Box::new(crate::risk_appetite_subsystem::RiskAppetiteSubsystem::new(
-                run_id,
-                config,
+                run_id.clone(),
+                config.clone(),
                 store_risk_appetite,
+            )),
+        );
+        // Phase 3.3: Incident & Outage (after all other subsystems)
+        engine.register(
+            SubsystemSlot::Incident,
+            Box::new(crate::incident_subsystem::IncidentSubsystem::new(
+                run_id,
+                config.incident,
+                store_incident,
             )),
         );
         Ok(engine)
@@ -357,7 +396,7 @@ impl SimEngine {
         // Execute each subsystem in registration order.
         // Each subsystem sees all events emitted so far this tick.
         for (slot, subsystem) in &mut self.subsystems {
-            let mut rng = self.rng_bank.for_subsystem(*slot);
+            let mut rng = self.rng_bank.for_subsystem_at_tick(*slot, current_tick);
             let new_events = subsystem.update(current_tick, &tick_events, &mut rng)?;
 
             // Persist each new event to the log.
@@ -679,6 +718,32 @@ impl SimEngine {
     ) -> SimResult<Option<crate::store::ExternalStatementRow>> {
         self.store.get_external_statement(run_id, rail_id, tick)
     }
+
+    // Phase 3.3: Incident & Outage test helpers
+
+    pub fn store_incident_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.incident_count(run_id)
+    }
+
+    pub fn store_resolved_incident_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.resolved_incident_count(run_id)
+    }
+
+    pub fn store_sla_breached_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.sla_breached_count(run_id)
+    }
+
+    pub fn store_incident_impact_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.incident_impact_count(run_id)
+    }
+
+    pub fn store_system_metrics_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.system_metrics_count(run_id)
+    }
+
+    pub fn store_system_component_count(&self) -> SimResult<i64> {
+        self.store.system_component_count()
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -720,5 +785,21 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::CustomerIdentityCreated { .. } => "customer_identity_created",
         SimEvent::AddressSharingAlert { .. } => "address_sharing_alert",
         SimEvent::PhoneSharingAlert { .. } => "phone_sharing_alert",
+        SimEvent::IncidentCreated { .. } => "incident_created",
+        SimEvent::IncidentResolved { .. } => "incident_resolved",
+        SimEvent::IncidentSLABreach { .. } => "incident_sla_breach",
+        SimEvent::ComponentStatusChanged { .. } => "component_status_changed",
+        SimEvent::ComponentUpgradeStarted { .. } => "component_upgrade_started",
+        SimEvent::ComponentUpgradeCompleted { .. } => "component_upgrade_completed",
+        SimEvent::CascadingImpactApplied { .. } => "cascading_impact_applied",
+        SimEvent::SystemMetricsComputed { .. } => "system_metrics_computed",
+        // Phase 3.4: Card Dispute events
+        SimEvent::DisputeFiled { .. } => "dispute_filed",
+        SimEvent::DisputeStatusChanged { .. } => "dispute_status_changed",
+        SimEvent::ProvisionalCreditIssued { .. } => "provisional_credit_issued",
+        SimEvent::DisputeResolved { .. } => "dispute_resolved",
+        SimEvent::ChargebackIssued { .. } => "chargeback_issued",
+        SimEvent::FriendlyFraudDetected { .. } => "friendly_fraud_detected",
+        SimEvent::ChargebackMetricsComputed { .. } => "chargeback_metrics_computed",
     }
 }

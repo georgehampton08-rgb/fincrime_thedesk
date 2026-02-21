@@ -504,6 +504,28 @@ struct IdentityAddressFile {
     rates: IdentityRates,
 }
 
+// ── Phase 3.3: Incident & Outage config ───────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TechnologyTierConfig {
+    pub tier_id: String,
+    pub label: String,
+    pub mtbf_multiplier: f64,
+    pub mttr_multiplier: f64,
+    pub degradation_prob: f64,
+    pub upgrade_cost: f64,
+    pub upgrade_duration_ticks: Tick,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncidentConfig {
+    pub enabled: bool,
+    pub severity_weights: Vec<(String, f64)>,  // ordered, not HashMap
+    pub sla_deadlines: Vec<(String, Tick)>,     // ordered, not HashMap
+    pub cascading_failures_enabled: bool,
+    pub metrics_interval_ticks: Tick,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments: HashMap<String, SegmentConfig>,
@@ -521,6 +543,7 @@ pub struct SimConfig {
     pub payment_hub: PaymentHubConfig,
     pub reconciliation: ReconciliationConfig,
     pub identity_address: IdentityAddressConfig,
+    pub incident: IncidentConfig,
 }
 
 impl SimConfig {
@@ -672,6 +695,23 @@ impl SimConfig {
                 }
             },
             identity_address,
+            incident: IncidentConfig {
+                enabled: true,
+                severity_weights: vec![
+                    ("P0".into(), 0.05),
+                    ("P1".into(), 0.15),
+                    ("P2".into(), 0.30),
+                    ("P3".into(), 0.50),
+                ],
+                sla_deadlines: vec![
+                    ("P0".into(), 0),
+                    ("P1".into(), 0),
+                    ("P2".into(), 1),
+                    ("P3".into(), 3),
+                ],
+                cascading_failures_enabled: true,
+                metrics_interval_ticks: 7,
+            },
         })
     }
 
@@ -1257,6 +1297,23 @@ impl SimConfig {
                 address_sharing_alert_threshold: 5,
                 voip_rate: 0.05,
                 international_customer_rate: 0.008,
+            },
+            incident: IncidentConfig {
+                enabled: true,
+                severity_weights: vec![
+                    ("P0".into(), 0.05),
+                    ("P1".into(), 0.15),
+                    ("P2".into(), 0.30),
+                    ("P3".into(), 0.50),
+                ],
+                sla_deadlines: vec![
+                    ("P0".into(), 0),
+                    ("P1".into(), 0),
+                    ("P2".into(), 1),
+                    ("P3".into(), 3),
+                ],
+                cascading_failures_enabled: true,
+                metrics_interval_ticks: 7,
             },
         }
     }
