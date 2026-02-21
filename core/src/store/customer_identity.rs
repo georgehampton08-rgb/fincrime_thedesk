@@ -1,6 +1,6 @@
 use super::{SimStore, CustomerIdentityRow, CustomerAddressRow, CustomerPhoneRow};
 use crate::{error::SimResult, types::Tick};
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 impl SimStore {
 pub fn insert_customer_identity(&self, row: &CustomerIdentityRow) -> SimResult<()> {
