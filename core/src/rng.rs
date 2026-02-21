@@ -110,6 +110,9 @@ pub enum SubsystemSlot {
     Reconciliation = 14,     // Phase 3.2
     Incident = 15,           // Phase 3.3
     CardDispute = 16,        // Phase 3.4
+    FraudDetection = 17,     // Phase 3.5 Week 3
+    AMLScreening = 18,       // Phase 3.5 Week 4
+    TransactionMonitoring = 19, // Phase 3.5 Week 5
                              // Add new subsystems here — append only.
 }
 
@@ -133,6 +136,9 @@ impl SubsystemSlot {
             Self::Reconciliation => "reconciliation",
             Self::Incident => "incident",
             Self::CardDispute => "card_dispute",
+            Self::FraudDetection => "fraud_detection",
+            Self::AMLScreening => "aml_screening",
+            Self::TransactionMonitoring => "transaction_monitoring",
         }
     }
 }

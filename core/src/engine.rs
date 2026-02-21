@@ -79,6 +79,9 @@ impl SimEngine {
         let store_payment_hub = store.reopen()?;
         let store_recon = store.reopen()?;
         let store_card_dispute = store.reopen()?;
+        let store_fraud_detection = store.reopen()?;
+        let store_aml_screening = store.reopen()?;
+        let store_transaction_monitoring = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -146,6 +149,30 @@ impl SimEngine {
             Box::new(crate::card_dispute_subsystem::CardDisputeSubsystem::new(
                 run_id.clone(),
                 store_card_dispute,
+            )),
+        );
+        // Phase 3.5: FraudDetection (Week 3)
+        engine.register(
+            SubsystemSlot::FraudDetection,
+            Box::new(crate::fraud_detection_subsystem::FraudDetectionSubsystem::new(
+                run_id.clone(),
+                store_fraud_detection,
+            )),
+        );
+        // Phase 3.5: AMLScreening (Week 4)
+        engine.register(
+            SubsystemSlot::AMLScreening,
+            Box::new(crate::aml_screening_subsystem::AMLScreeningSubsystem::new(
+                run_id.clone(),
+                store_aml_screening,
+            )),
+        );
+        // Phase 3.5: Transaction Monitoring (Week 5)
+        engine.register(
+            SubsystemSlot::TransactionMonitoring,
+            Box::new(crate::transaction_monitoring_subsystem::TransactionMonitoringSubsystem::new(
+                run_id.clone(),
+                store_transaction_monitoring,
             )),
         );
         engine.register(
@@ -231,6 +258,9 @@ impl SimEngine {
         let store_recon = store.reopen()?;
         let store_incident = store.reopen()?;
         let store_card_dispute = store.reopen()?;
+        let store_fraud_detection = store.reopen()?;
+        let store_aml_screening = store.reopen()?;
+        let store_transaction_monitoring = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -293,6 +323,30 @@ impl SimEngine {
             Box::new(crate::card_dispute_subsystem::CardDisputeSubsystem::new(
                 run_id.clone(),
                 store_card_dispute,
+            )),
+        );
+        // Phase 3.5: FraudDetection (Week 3)
+        engine.register(
+            SubsystemSlot::FraudDetection,
+            Box::new(crate::fraud_detection_subsystem::FraudDetectionSubsystem::new(
+                run_id.clone(),
+                store_fraud_detection,
+            )),
+        );
+        // Phase 3.5: AMLScreening (Week 4)
+        engine.register(
+            SubsystemSlot::AMLScreening,
+            Box::new(crate::aml_screening_subsystem::AMLScreeningSubsystem::new(
+                run_id.clone(),
+                store_aml_screening,
+            )),
+        );
+        // Phase 3.5: Transaction Monitoring (Week 5)
+        engine.register(
+            SubsystemSlot::TransactionMonitoring,
+            Box::new(crate::transaction_monitoring_subsystem::TransactionMonitoringSubsystem::new(
+                run_id.clone(),
+                store_transaction_monitoring,
             )),
         );
         engine.register(
@@ -801,5 +855,21 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::ChargebackIssued { .. } => "chargeback_issued",
         SimEvent::FriendlyFraudDetected { .. } => "friendly_fraud_detected",
         SimEvent::ChargebackMetricsComputed { .. } => "chargeback_metrics_computed",
+        // Phase 3.5: Fraud Detection & AML events
+        SimEvent::FraudPatternDetected { .. } => "fraud_pattern_detected",
+        SimEvent::FraudAlertGenerated { .. } => "fraud_alert_generated",
+        // Phase 3.5 Week 4: AML events
+        SimEvent::AMLScreeningHit { .. } => "aml_screening_hit",
+        SimEvent::AMLAlertGenerated { .. } => "aml_alert_generated",
+        SimEvent::AMLRiskRatingComputed { .. } => "aml_risk_rating_computed",
+        SimEvent::AMLMetricsComputed { .. } => "aml_metrics_computed",
+        // Phase 3.5 Week 5: Transaction Monitoring
+        SimEvent::TransactionMonitoringAlert { .. } => "transaction_monitoring_alert",
+        SimEvent::CTRFiled { .. } => "ctr_filed",
+        SimEvent::TransactionMonitoringMetricsComputed { .. } => "transaction_monitoring_metrics_computed",
+        // Phase 3.5 Week 6: SAR Filing
+        SimEvent::SARFiled { .. } => "sar_filed",
+        SimEvent::SARLateFiling { .. } => "sar_late_filing",
+        SimEvent::SARMetricsComputed { .. } => "sar_metrics_computed",
     }
 }

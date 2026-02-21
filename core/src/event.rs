@@ -353,6 +353,97 @@ pub enum SimEvent {
         win_rate_7d: f64,
         chargeback_amount_7d: f64,
     },
+    // Phase 3.5: Fraud Detection & AML
+    FraudPatternDetected {
+        tick: Tick,
+        pattern_id: String,
+        pattern_type: String,
+        customer_id: String,
+        confidence_score: f64,
+    },
+    FraudAlertGenerated {
+        tick: Tick,
+        alert_id: String,
+        alert_type: String,
+        entity_id: String,
+        fraud_score: f64,
+        severity: String,
+    },
+    // Phase 3.5 Week 4: AML Screening & Risk Rating
+    AMLScreeningHit {
+        tick: Tick,
+        screening_id: String,
+        screening_type: String,
+        customer_id: String,
+        match_type: String,
+        match_score: f64,
+    },
+    AMLAlertGenerated {
+        tick: Tick,
+        alert_id: String,
+        alert_type: String,
+        customer_id: String,
+        severity: String,
+        risk_score: f64,
+    },
+    AMLRiskRatingComputed {
+        tick: Tick,
+        customer_id: String,
+        risk_rating: String,
+        risk_score: f64,
+        requires_edd: bool,
+    },
+    AMLMetricsComputed {
+        tick: Tick,
+        screenings_7d: i64,
+        sanctions_hits_7d: i64,
+        pep_matches_7d: i64,
+        alerts_generated_7d: i64,
+    },
+
+    // Phase 3.5 Week 5: Transaction Monitoring
+    TransactionMonitoringAlert {
+        tick: Tick,
+        alert_id: String,
+        alert_type: String,
+        customer_id: String,
+        alert_score: f64,
+        description: String,
+    },
+    CTRFiled {
+        tick: Tick,
+        ctr_id: String,
+        customer_id: String,
+        amount: f64,
+        transaction_type: String,
+    },
+    TransactionMonitoringMetricsComputed {
+        tick: Tick,
+        alerts_generated: i64,
+        ctrs_filed: i64,
+    },
+
+    // Phase 3.5 Week 6: SAR Filing & Integration
+    SARFiled {
+        tick: Tick,
+        sar_id: String,
+        customer_id: String,
+        activity_type: String,
+        suspicious_amount: f64,
+    },
+    SARLateFiling {
+        tick: Tick,
+        sar_id: String,
+        customer_id: String,
+        days_late: i64,
+        regulatory_fine: f64,
+    },
+    SARMetricsComputed {
+        tick: Tick,
+        sars_filed: i64,
+        sars_late: i64,
+        total_fines: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

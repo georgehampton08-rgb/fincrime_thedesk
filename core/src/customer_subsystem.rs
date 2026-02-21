@@ -2,6 +2,7 @@ use crate::{
     config::{RegionPool, SegmentConfig, SimConfig},
     error::SimResult,
     event::SimEvent,
+    name_generator::NameGenerator,
     rng::SubsystemRng,
     store::{
         AuthorizedSignerRow, BusinessEntityRow, CustodialAccountRow,
@@ -27,6 +28,7 @@ const TICKS_PER_YEAR: i32 = 365;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomerRecord {
     pub customer_id: String,
+    pub name: String,
     pub segment: String,
     pub income_band: String,
     pub risk_band: String,
@@ -86,8 +88,16 @@ impl CustomerSubsystem {
             let customer_id = format!("c-{i:06}");
             let account_id = format!("a-{i:06}");
 
+            // Generate name based on segment type
+            let name = if seg.id == "small_business" || seg.id == "commercial" {
+                NameGenerator::generate_business_name(rng)
+            } else {
+                NameGenerator::generate_full_name(rng)
+            };
+
             let record = CustomerRecord {
                 customer_id: customer_id.clone(),
+                name,
                 segment: seg.id.clone(),
                 income_band: income_band.clone(),
                 risk_band: "low".into(),
