@@ -10,11 +10,14 @@ jobs:
   core:
     name: Core — Build, Test, Determinism
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -25,21 +28,69 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build core (isolation check)
+      - name: Build core (isolation check — ADR-004)
         run: cargo build -p fincrime-core
 
-      - name: Run all tests including determinism
+      - name: Build sim-runner
+        run: cargo build -p sim-runner
+
+      - name: Run all core tests
         run: cargo test -p fincrime-core -- --nocapture
 
-      - name: Enforce no platform RNG in core
+      - name: Enforce no platform RNG in core (ADR-003)
         run: |
-          if grep -r "thread_rng\|SystemTime\|Instant::now" core/src/; then
-            echo "ERROR: Platform non-determinism found in /core"
+          if grep -rn "thread_rng\|SystemTime\|Instant::now" core/src/; then
+            echo "ERROR: Platform non-determinism found in /core — see ADR-003"
             exit 1
           fi
+          echo "RNG audit passed."
 
       - name: Check formatting
         run: cargo fmt --check
 
-      - name: Clippy (no warnings)
+      - name: Clippy (no warnings, core only)
         run: cargo clippy -p fincrime-core -- -D warnings
+
+  tools:
+    name: Tools — Build and Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-tools-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tools
+        run: cargo build -p sim-runner
+
+      - name: Clippy tools
+        run: cargo clippy -p sim-runner -- -D warnings
+
+  security:
+    name: Security — Dependency Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Non-blocking; review output manually
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run dependency audit
+        run: cargo audit || echo "Advisory scan complete — review output above"
