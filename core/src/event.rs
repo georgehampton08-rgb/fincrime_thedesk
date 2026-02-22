@@ -444,7 +444,46 @@ pub enum SimEvent {
         sars_late: i64,
         total_fines: f64,
     },
+
+    // ── Phase 3.6: Regulatory Examination ─────────────────────────
+    RegulatoryExamStarted {
+        tick: Tick,
+        exam_id: String,
+        examiner: String,
+        scope: String,
+    },
+    ExamFindingRecorded {
+        tick: Tick,
+        exam_id: String,
+        finding_id: String,
+        category: String,
+        severity: String,
+        fine_amount: f64,
+    },
+    RegulatoryExamClosed {
+        tick: Tick,
+        exam_id: String,
+        examiner: String,
+        finding_count: i64,
+        fine_total: f64,
+        mou_issued: bool,
+    },
+    MOUReceived {
+        tick: Tick,
+        exam_id: String,
+        examiner: String,
+        fine_total: f64,
+    },
+
+    // ── Phase 3.6: Reputation Management ──────────────────────────
+    ReputationUpdated {
+        tick: Tick,
+        score: f64,
+        delta: f64,
+        primary_driver: String,
+    },
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

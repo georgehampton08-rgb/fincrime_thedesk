@@ -20,6 +20,8 @@ pub mod ops_specialist_role;
 pub mod payment_hub_subsystem;
 pub mod pricing_subsystem;
 pub mod reconciliation_subsystem;
+pub mod regulatory_exam_subsystem;  // Phase 3.6
+pub mod reputation_subsystem;       // Phase 3.6
 pub mod risk_appetite_subsystem;
 pub mod rng;
 pub mod snapshot;

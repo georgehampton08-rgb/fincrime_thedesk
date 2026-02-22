@@ -113,6 +113,8 @@ pub enum SubsystemSlot {
     FraudDetection = 17,     // Phase 3.5 Week 3
     AMLScreening = 18,       // Phase 3.5 Week 4
     TransactionMonitoring = 19, // Phase 3.5 Week 5
+    RegulatoryExam = 20,     // Phase 3.6
+    Reputation = 21,         // Phase 3.6
                              // Add new subsystems here — append only.
 }
 
@@ -139,6 +141,8 @@ impl SubsystemSlot {
             Self::FraudDetection => "fraud_detection",
             Self::AMLScreening => "aml_screening",
             Self::TransactionMonitoring => "transaction_monitoring",
+            Self::RegulatoryExam => "regulatory_exam",
+            Self::Reputation => "reputation",
         }
     }
 }

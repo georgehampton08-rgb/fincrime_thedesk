@@ -15,6 +15,8 @@ mod offer;
 mod customer_identity;
 mod business;
 mod complaint;
+pub mod regulatory_exam;  // Phase 3.6
+pub mod reputation;       // Phase 3.6
 use rusqlite::{params, Connection, OptionalExtension};
 
 pub struct SimStore {
@@ -108,6 +110,10 @@ impl SimStore {
             .execute_batch(include_str!("../../../migrations/024_transaction_monitoring.sql"))?;
         self.conn
             .execute_batch(include_str!("../../../migrations/025_sar_filing.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../../migrations/026_regulatory_exam.sql"))?;
+        self.conn
+            .execute_batch(include_str!("../../../migrations/027_reputation.sql"))?;
         Ok(())
     }
 
@@ -528,6 +534,24 @@ impl SimStore {
 
     pub fn churned_customer_count(&self, run_id: &str) -> SimResult<i64> {
         self.customer_count(run_id, "churned")
+    }
+
+    /// Count event_log entries of a given type within a tick window.
+    /// Used by RegulatoryExamSubsystem to scan compliance evidence.
+    pub fn count_events_in_range(
+        &self,
+        run_id:     &str,
+        tick_start: crate::types::Tick,
+        tick_end:   crate::types::Tick,
+        event_type: &str,
+    ) -> SimResult<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM event_log
+             WHERE run_id = ?1 AND tick >= ?2 AND tick <= ?3 AND event_type = ?4",
+            params![run_id, tick_start as i64, tick_end as i64, event_type],
+            |row| row.get(0),
+        )?;
+        Ok(count)
     }
 
     // ── P&L ─────────────────────────────────────────────────────

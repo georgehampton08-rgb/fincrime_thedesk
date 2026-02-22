@@ -526,6 +526,52 @@ pub struct IncidentConfig {
     pub metrics_interval_ticks: Tick,
 }
 
+// ── Phase 3.6: Regulatory Exam config ─────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegulatoryExamConfig {
+    pub enabled: bool,
+    /// How often an exam cycle starts (in ticks).
+    pub exam_interval_ticks: Tick,
+    /// Duration of an exam (in ticks).
+    pub exam_duration_ticks: Tick,
+    /// Ordered list of examiners (cycles round-robin).
+    pub examiners: Vec<String>,
+    /// Fine per minor finding.
+    pub fine_minor: f64,
+    /// Fine per moderate finding.
+    pub fine_moderate: f64,
+    /// Fine per major finding.
+    pub fine_major: f64,
+    /// Fine per critical finding.
+    pub fine_critical: f64,
+    /// Number of critical findings that trigger an MOU.
+    pub mou_critical_threshold: u32,
+}
+
+// ── Phase 3.6: Reputation config ──────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReputationConfig {
+    pub enabled: bool,
+    /// Starting reputation score [0, 100].
+    pub initial_score: f64,
+    /// Daily passive recovery when score < 80.
+    pub recovery_per_tick: f64,
+    /// Reputation impact per $1k of regulatory fine.
+    pub fine_impact_per_1k: f64,
+    /// Flat impact for an MOU.
+    pub mou_impact: f64,
+    /// Impact per SAR late filing.
+    pub sar_late_impact: f64,
+    /// Impact per SLA breach (complaint or incident).
+    pub sla_breach_impact: f64,
+    /// Score below which onboarding rate is penalised.
+    pub onboarding_penalty_threshold: f64,
+    /// Fraction of new customers blocked when score is at 0.
+    pub max_onboarding_penalty: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct SimConfig {
     pub segments: HashMap<String, SegmentConfig>,
@@ -544,6 +590,8 @@ pub struct SimConfig {
     pub reconciliation: ReconciliationConfig,
     pub identity_address: IdentityAddressConfig,
     pub incident: IncidentConfig,
+    pub regulatory_exam: RegulatoryExamConfig,
+    pub reputation: ReputationConfig,
 }
 
 impl SimConfig {
@@ -711,6 +759,28 @@ impl SimConfig {
                 ],
                 cascading_failures_enabled: true,
                 metrics_interval_ticks: 7,
+            },
+            regulatory_exam: RegulatoryExamConfig {
+                enabled: true,
+                exam_interval_ticks: 90,
+                exam_duration_ticks: 14,
+                examiners: vec!["OCC".into(), "CFPB".into(), "FDIC".into()],
+                fine_minor: 5_000.0,
+                fine_moderate: 50_000.0,
+                fine_major: 250_000.0,
+                fine_critical: 1_000_000.0,
+                mou_critical_threshold: 2,
+            },
+            reputation: ReputationConfig {
+                enabled: true,
+                initial_score: 75.0,
+                recovery_per_tick: 0.05,
+                fine_impact_per_1k: 0.1,
+                mou_impact: 10.0,
+                sar_late_impact: 2.0,
+                sla_breach_impact: 0.5,
+                onboarding_penalty_threshold: 40.0,
+                max_onboarding_penalty: 0.50,
             },
         })
     }
@@ -1314,6 +1384,28 @@ impl SimConfig {
                 ],
                 cascading_failures_enabled: true,
                 metrics_interval_ticks: 7,
+            },
+            regulatory_exam: RegulatoryExamConfig {
+                enabled: false, // disabled by default in tests (opt-in)
+                exam_interval_ticks: 90,
+                exam_duration_ticks: 14,
+                examiners: vec!["OCC".into(), "CFPB".into(), "FDIC".into()],
+                fine_minor: 5_000.0,
+                fine_moderate: 50_000.0,
+                fine_major: 250_000.0,
+                fine_critical: 1_000_000.0,
+                mou_critical_threshold: 2,
+            },
+            reputation: ReputationConfig {
+                enabled: false, // disabled by default in tests (opt-in)
+                initial_score: 75.0,
+                recovery_per_tick: 0.05,
+                fine_impact_per_1k: 0.1,
+                mou_impact: 10.0,
+                sar_late_impact: 2.0,
+                sla_breach_impact: 0.5,
+                onboarding_penalty_threshold: 40.0,
+                max_onboarding_penalty: 0.50,
             },
         }
     }

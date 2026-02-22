@@ -82,6 +82,8 @@ impl SimEngine {
         let store_fraud_detection = store.reopen()?;
         let store_aml_screening = store.reopen()?;
         let store_transaction_monitoring = store.reopen()?;
+        let store_regulatory_exam = store.reopen()?;
+        let store_reputation = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -221,7 +223,24 @@ impl SimEngine {
                 store_risk_appetite,
             )),
         );
-        // Phase 3:  Fraud, Regulatory (stubs)
+        // Phase 3.6: Regulatory Exam (after TransactionMonitoring — reads SAR events)
+        engine.register(
+            SubsystemSlot::RegulatoryExam,
+            Box::new(crate::regulatory_exam_subsystem::RegulatoryExamSubsystem::new(
+                run_id.clone(),
+                config.regulatory_exam.clone(),
+                store_regulatory_exam,
+            )),
+        );
+        // Phase 3.6: Reputation (last — reads all negative signals from this tick)
+        engine.register(
+            SubsystemSlot::Reputation,
+            Box::new(crate::reputation_subsystem::ReputationSubsystem::new(
+                run_id.clone(),
+                config.reputation.clone(),
+                store_reputation,
+            )),
+        );
         Ok(engine)
     }
 
@@ -235,6 +254,23 @@ impl SimEngine {
     pub fn build_test_with_incidents(run_id: RunId, seed: u64) -> SimResult<Self> {
         let mut config = crate::config::SimConfig::default_test();
         config.incident.enabled = true;
+        Self::build_test_with_config(run_id, seed, config)
+    }
+
+    /// Test-only build with regulatory exam subsystem enabled.
+    pub fn build_test_with_regulatory_exam(run_id: RunId, seed: u64) -> SimResult<Self> {
+        let mut config = crate::config::SimConfig::default_test();
+        config.regulatory_exam.enabled = true;
+        // Use very short interval so tests don't need 90 ticks
+        config.regulatory_exam.exam_interval_ticks = 20;
+        config.regulatory_exam.exam_duration_ticks = 5;
+        Self::build_test_with_config(run_id, seed, config)
+    }
+
+    /// Test-only build with reputation subsystem enabled.
+    pub fn build_test_with_reputation(run_id: RunId, seed: u64) -> SimResult<Self> {
+        let mut config = crate::config::SimConfig::default_test();
+        config.reputation.enabled = true;
         Self::build_test_with_config(run_id, seed, config)
     }
 
@@ -261,6 +297,8 @@ impl SimEngine {
         let store_fraud_detection = store.reopen()?;
         let store_aml_screening = store.reopen()?;
         let store_transaction_monitoring = store.reopen()?;
+        let store_regulatory_exam = store.reopen()?;
+        let store_reputation = store.reopen()?;
 
         let mut engine = SimEngine::new(run_id.clone(), seed, store.reopen()?);
         engine.resolution_codes = config.resolution_codes.clone();
@@ -398,9 +436,27 @@ impl SimEngine {
         engine.register(
             SubsystemSlot::Incident,
             Box::new(crate::incident_subsystem::IncidentSubsystem::new(
-                run_id,
-                config.incident,
+                run_id.clone(),
+                config.incident.clone(),
                 store_incident,
+            )),
+        );
+        // Phase 3.6: Regulatory Exam
+        engine.register(
+            SubsystemSlot::RegulatoryExam,
+            Box::new(crate::regulatory_exam_subsystem::RegulatoryExamSubsystem::new(
+                run_id.clone(),
+                config.regulatory_exam.clone(),
+                store_regulatory_exam,
+            )),
+        );
+        // Phase 3.6: Reputation (last in order)
+        engine.register(
+            SubsystemSlot::Reputation,
+            Box::new(crate::reputation_subsystem::ReputationSubsystem::new(
+                run_id,
+                config.reputation,
+                store_reputation,
             )),
         );
         Ok(engine)
@@ -798,6 +854,30 @@ impl SimEngine {
     pub fn store_system_component_count(&self) -> SimResult<i64> {
         self.store.system_component_count()
     }
+
+    // Phase 3.6: Regulatory Exam test helpers
+
+    pub fn store_exam_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.exam_count(run_id)
+    }
+
+    pub fn store_exam_finding_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.exam_finding_count(run_id)
+    }
+
+    pub fn store_exam_fine_total(&self, run_id: &str) -> SimResult<f64> {
+        self.store.exam_fine_total(run_id)
+    }
+
+    // Phase 3.6: Reputation test helpers
+
+    pub fn store_reputation_snapshot_count(&self, run_id: &str) -> SimResult<i64> {
+        self.store.reputation_snapshot_count(run_id)
+    }
+
+    pub fn store_latest_reputation_score(&self, run_id: &str) -> SimResult<f64> {
+        self.store.latest_reputation_score(run_id)
+    }
 }
 
 /// Extract a stable string name from a SimEvent variant.
@@ -871,5 +951,12 @@ fn event_type_name(event: &SimEvent) -> &'static str {
         SimEvent::SARFiled { .. } => "sar_filed",
         SimEvent::SARLateFiling { .. } => "sar_late_filing",
         SimEvent::SARMetricsComputed { .. } => "sar_metrics_computed",
+        // Phase 3.6: Regulatory Exam
+        SimEvent::RegulatoryExamStarted { .. } => "regulatory_exam_started",
+        SimEvent::ExamFindingRecorded { .. } => "exam_finding_recorded",
+        SimEvent::RegulatoryExamClosed { .. } => "regulatory_exam_closed",
+        SimEvent::MOUReceived { .. } => "mou_received",
+        // Phase 3.6: Reputation
+        SimEvent::ReputationUpdated { .. } => "reputation_updated",
     }
 }
