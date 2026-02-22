@@ -1,0 +1,67 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --no-fail-fast 
+--test inci ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.08s
+     Running tests\incident.rs (tar
+get\debug\deps\incident-e22c51b243d
+684a2.exe)
+
+running 7 tests

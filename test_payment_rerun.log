@@ -1,0 +1,74 @@
+﻿cargo :    Compiling fincrime-core 
+v0.1.0 (C:\Users\georg\fincrime_the
+desk\core)
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test payment_hub 
+-- dete ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (   Compiling fi...e  
+  _thedesk\core):String) [], Rem   
+ oteException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 2.24s
+     Running tests\payment_hub.rs (
+target\debug\deps\payment_hub-8ba44
+30ad1a3953c.exe)
+
+running 1 test
+test determinism_with_multiple_rails has been running for over 60 seconds
+test determinism_with_multiple_rails ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 63.80s
+

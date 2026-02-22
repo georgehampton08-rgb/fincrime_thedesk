@@ -1,0 +1,128 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test offers 
+--test payme ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+   Compiling fincrime-core v0.1.0 (
+C:\Users\georg\fincrime_thedesk\cor
+e)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.73s
+     Running tests\offers.rs (targe
+t\debug\deps\offers-ee054eb0d90f638
+f.exe)
+
+running 6 tests
+test new_customers_matched_to_eligible_offers ... ok
+test bonus_seeker_flag_set_probabilistically ... ok
+test bonus_paid_on_completion has been running for over 60 seconds
+test determinism_holds_with_offers has been running for over 60 seconds
+test offer_cost_appears_in_pnl has been running for over 60 seconds
+test offer_not_complete_before_duration has been running for over 60 seconds
+test offer_not_complete_before_duration ... ok
+test bonus_paid_on_completion ... ok
+test offer_cost_appears_in_pnl ... ok
+test determinism_holds_with_offers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 407.07s
+
+     Running tests\payment_hub.rs (
+target\debug\deps\payment_hub-8ba44
+30ad1a3953c.exe)
+
+running 6 tests
+test pending_vs_posted_balance_accuracy ... ok
+test ach_settles_t_plus_1 ... ok
+test card_auth_clear_settle_lifecycle ... ok
+test wire_settles_same_day ... ok
+test determinism_with_multiple_rails has been running for over 60 seconds
+test payment_rail_capacity_limits has been running for over 60 seconds
+test payment_rail_capacity_limits ... ok
+test determinism_with_multiple_rails ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 257.83s
+
+     Running tests\population.rs (t
+arget\debug\deps\population-7fba402
+9397c3b63.exe)
+
+running 5 tests
+test initial_population_generates_correct_count ... ok
+test transactions_generated_every_tick_after_tick_0 ... ok
+test payroll_fires_on_biweekly_boundary ... ok
+test determinism_holds_with_customers_and_transactions has been running for over 60 seconds
+test transaction_amounts_follow_pareto_shape has been running for over 60 seconds
+test determinism_holds_with_customers_and_transactions ... ok
+test transaction_amounts_follow_pareto_shape ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 190.01s
+
+     Running tests\pricing.rs (targ
+et\debug\deps\pricing-bf4f4cb129656
+a11.exe)
+
+running 5 tests
+test fee_change_above_hard_limit_rejected ... ok
+test fee_change_within_limits_succeeds ... ok
+test fee_change_above_soft_limit_generates_warning ... ok
+test fee_change_history_logged ... ok
+test determinism_holds_with_fee_changes has been running for over 60 seconds
+test determinism_holds_with_fee_changes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 122.11s
+

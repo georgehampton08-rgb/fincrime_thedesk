@@ -1,0 +1,85 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --no-fail-fast 
+--test paym ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.10s
+     Running tests\payment_hub.rs (
+target\debug\deps\payment_hub-8ba44
+30ad1a3953c.exe)
+
+running 6 tests
+test ach_settles_t_plus_1 ... ok
+test card_auth_clear_settle_lifecycle ... ok
+test payment_rail_capacity_limits ... ok
+test pending_vs_posted_balance_accuracy ... ok
+test wire_settles_same_day ... ok
+test determinism_with_multiple_rails has been running for over 60 seconds
+test determinism_with_multiple_rails ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 119.43s
+
+     Running 
+tests\reconciliation.rs (target\deb
+ug\deps\reconciliation-52adcce94b96
+3fe5.exe)
+
+running 5 tests
+test direct_exception_insert_is_visible ... ok
+test ledger_entries_written_on_settlement ... ok

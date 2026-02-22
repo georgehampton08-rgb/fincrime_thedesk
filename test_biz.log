@@ -1,0 +1,253 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test 
+business_entity --  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotS   
+ pecified: (warning: unused var    
+iable: `tick`:String) [], Remo    
+teException
+    + FullyQualifiedErrorId : Nati   
+ veCommandError
+ 
+   --> 
+core\src\customer_subsystem.rs:456:9
+    |
+456 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part of 
+`#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> 
+core\src\customer_subsystem.rs:685:9
+    |
+685 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> 
+core\src\customer_subsystem.rs:805:9
+    |
+805 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> 
+core\src\customer_subsystem.rs:955:9
+    |
+955 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo fix 
+--lib -p fincrime-core` to apply 4 
+suggestions)
+    Finished `test` profile 
+[unoptimized + debuginfo] target(s) 
+in 0.09s
+     Running 
+tests\business_entity.rs (target\debu
+g\deps\business_entity-45481011b9b2a4
+48.exe)
+
+running 8 tests
+test account_type_categories_assigned ... FAILED
+test account_type_config_seeded ... ok
+test beneficiaries_created_for_married ... FAILED
+test business_entity_generated_for_small_business ... FAILED
+test dba_names_assigned ... FAILED
+test ein_format_is_valid ... FAILED
+test marital_status_assigned_to_all ... FAILED
+test shell_company_indicators_set ... FAILED
+
+failures:
+
+---- account_type_categories_assigned stdout ----
+
+thread 'account_type_categories_assigned' (117240) panicked at core\tests\business_entity.rs:135:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::account_type_categories_assigned
+             at .\tests\business_entity.rs:135
+   5: business_entity::account_type_categories_assigned::closure$0
+             at .\tests\business_entity.rs:133
+   6: core::ops::function::FnOnce::call_once<business_entity::account_type_categories_assigned::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- beneficiaries_created_for_married stdout ----
+
+thread 'beneficiaries_created_for_married' (91292) panicked at core\tests\business_entity.rs:88:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::beneficiaries_created_for_married
+             at .\tests\business_entity.rs:88
+   5: business_entity::beneficiaries_created_for_married::closure$0
+             at .\tests\business_entity.rs:86
+   6: core::ops::function::FnOnce::call_once<business_entity::beneficiaries_created_for_married::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- business_entity_generated_for_small_business stdout ----
+
+thread 'business_entity_generated_for_small_business' (118904) panicked at core\tests\business_entity.rs:17:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::business_entity_generated_for_small_business
+             at .\tests\business_entity.rs:17
+   5: business_entity::business_entity_generated_for_small_business::closure$0
+             at .\tests\business_entity.rs:15
+   6: core::ops::function::FnOnce::call_once<business_entity::business_entity_generated_for_small_business::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dba_names_assigned stdout ----
+
+thread 'dba_names_assigned' (114524) panicked at core\tests\business_entity.rs:102:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::dba_names_assigned
+             at .\tests\business_entity.rs:102
+   5: business_entity::dba_names_assigned::closure$0
+             at .\tests\business_entity.rs:100
+   6: core::ops::function::FnOnce::call_once<business_entity::dba_names_assigned::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- ein_format_is_valid stdout ----
+
+thread 'ein_format_is_valid' (119040) panicked at core\tests\business_entity.rs:31:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::ein_format_is_valid
+             at .\tests\business_entity.rs:31
+   5: business_entity::ein_format_is_valid::closure$0
+             at .\tests\business_entity.rs:29
+   6: core::ops::function::FnOnce::call_once<business_entity::ein_format_is_valid::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- marital_status_assigned_to_all stdout ----
+
+thread 'marital_status_assigned_to_all' (26672) panicked at core\tests\business_entity.rs:73:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::marital_status_assigned_to_all
+             at .\tests\business_entity.rs:73
+   5: business_entity::marital_status_assigned_to_all::closure$0
+             at .\tests\business_entity.rs:71
+   6: core::ops::function::FnOnce::call_once<business_entity::marital_status_assigned_to_all::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- shell_company_indicators_set stdout ----
+
+thread 'shell_company_indicators_set' (101728) panicked at core\tests\business_entity.rs:121:25:
+called `Result::unwrap()` on an `Err` value: Database(SqliteFailure(Error { code: ConstraintViolation, extended_code: 787 }, Some("FOREIGN KEY constraint failed")))
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\std\src\panicking.rs:698
+   1: core::panicking::panic_fmt
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\result.rs:1862
+   3: enum2$<core::result::Result<tuple$<>,enum2$<fincrime_core::error::SimError> > >::unwrap
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\result.rs:1233
+   4: business_entity::shell_company_indicators_set
+             at .\tests\business_entity.rs:121
+   5: business_entity::shell_company_indicators_set::closure$0
+             at .\tests\business_entity.rs:119
+   6: core::ops::function::FnOnce::call_once<business_entity::shell_company_indicators_set::closure_env$0,tuple$<> >
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\ops\function.rs:250
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234/library\core\src\ops\function.rs:250
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    account_type_categories_assigned
+    beneficiaries_created_for_married
+    business_entity_generated_for_small_business
+    dba_names_assigned
+    ein_format_is_valid
+    marital_status_assigned_to_all
+    shell_company_indicators_set
+
+test result: FAILED. 1 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.49s
+
+error: test failed, to rerun pass 
+`--test business_entity`

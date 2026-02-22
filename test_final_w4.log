@@ -1,0 +1,129 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test 
+reconciliation --te ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+   Compiling fincrime-core v0.1.0 (
+C:\Users\georg\fincrime_thedesk\cor
+e)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.76s
+     Running 
+tests\reconciliation.rs (target\deb
+ug\deps\reconciliation-52adcce94b96
+3fe5.exe)
+
+running 5 tests
+test direct_exception_insert_is_visible ... ok
+test timing_exceptions_auto_cleared_next_day ... ok
+test ledger_entries_written_on_settlement ... ok
+test recon_metrics_computed_on_schedule ... ok
+test reconciliation_runs_without_error ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.53s
+
+     Running 
+tests\risk_appetite.rs (target\debu
+g\deps\risk_appetite-03579b35a6673c
+99.exe)
+
+running 5 tests
+test dial_changes_logged ... ok
+test constraint_violations_blocked ... ok
+test risk_profile_computed ... ok
+test board_pressure_fires_on_violations ... ok
+test determinism_holds_with_risk_dials has been running for over 60 seconds
+test determinism_holds_with_risk_dials ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 105.73s
+
+     Running tests\risk_scoring.rs 
+(target\debug\deps\risk_scoring-5db
+bf1f0df4b7236.exe)
+
+running 8 tests
+test suspicious_relationship_query ... ok
+test risk_scores_assigned_to_all_customers ... ok
+test customer_relationships_created ... ok
+test joint_ownership_is_paired ... ok
+test authorized_signers_created ... ok
+test edd_required_for_some ... ok
+test risk_score_categories_valid ... ok
+test joint_ownership_for_married ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.52s
+
+     Running 
+tests\segment_profitability.rs (tar
+get\debug\deps\segment_profitabilit
+y-1d2e436bb0c0a78a.exe)
+
+running 5 tests
+test below_target_margin_flag_fires has been running for over 60 seconds
+test customer_margin_calculation_correct has been running for over 60 seconds
+test determinism_holds_with_segment_pnl has been running for over 60 seconds
+test segment_pnl_components_sum_correctly has been running for over 60 seconds
+test segment_pnl_computed_quarterly has been running for over 60 seconds
+test segment_pnl_components_sum_correctly ... ok
+test customer_margin_calculation_correct ... ok
+test segment_pnl_computed_quarterly ... ok
+test determinism_holds_with_segment_pnl ... ok
+test below_target_margin_flag_fires ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 485.15s
+

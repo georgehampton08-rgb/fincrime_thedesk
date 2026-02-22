@@ -1,0 +1,129 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --no-fail-fast 
+--test busi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.08s
+     Running 
+tests\business_entity.rs (target\de
+bug\deps\business_entity-45481011b9
+b2a448.exe)
+
+running 8 tests
+test account_type_config_seeded ... ok
+test account_type_categories_assigned ... ok
+test beneficiaries_created_for_married ... ok
+test business_entity_generated_for_small_business ... ok
+test dba_names_assigned ... ok
+test ein_format_is_valid ... ok
+test marital_status_assigned_to_all ... ok
+test shell_company_indicators_set ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.83s
+
+     Running 
+tests\complaint_analytics.rs (targe
+t\debug\deps\complaint_analytics-35
+2b7e22f6ef9120.exe)
+
+running 5 tests
+test analytics_runs_without_error_over_90_ticks has been running for over 60 seconds
+test determinism_holds_with_complaint_analytics has been running for over 60 seconds
+test analytics_runs_without_error_over_90_ticks ... ok
+test repeat_complainers_identified_without_error has been running for over 60 seconds
+test determinism_holds_with_complaint_analytics ... ok
+test sla_snapshot_priority_coverage ... ok
+test sla_snapshots_written_every_7_ticks ... ok
+test repeat_complainers_identified_without_error ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 606.86s
+
+     Running tests\complaints.rs (t
+arget\debug\deps\complaints-a90fa04
+5c2ab25a9.exe)
+
+running 5 tests
+test complaint_resolution_affects_satisfaction ... ok
+test complaint_backlog_equals_open_count ... ok
+test fee_charged_generates_complaint has been running for over 60 seconds
+test fee_events_precede_complaints has been running for over 60 seconds
+test fee_charged_generates_complaint ... ok
+test fee_events_precede_complaints ... ok
+test sla_aging_breaches_overdue_complaints ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 177.54s
+
+     Running tests\economics.rs (ta
+rget\debug\deps\economics-d7ea1efc9
+a9f436b.exe)
+
+running 5 tests
+test efficiency_ratio_computed_correctly has been running for over 60 seconds
+test fee_income_accumulates_from_transactions has been running for over 60 seconds
+test efficiency_ratio_computed_correctly ... ok
+test fee_income_accumulates_from_transactions ... ok
+test multiple_quarters_produce_multiple_snapshots has been running for over 60 seconds
+test nim_within_realistic_range has been running for over 60 seconds
+test nim_within_realistic_range ... ok
+test pnl_computed_on_quarterly_boundaries has been running for over 60 seconds
+test pnl_computed_on_quarterly_boundaries ... ok
+test multiple_quarters_produce_multiple_snapshots ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 880.50s
+

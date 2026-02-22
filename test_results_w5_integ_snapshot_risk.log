@@ -1,0 +1,35 @@
+﻿cargo : error: no test target 
+named `integration` in default-run 
+packages
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --no-fail-fast 
+--test inte ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (error: no test ...l  
+  t-run packages:String) [], Rem   
+ oteException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+help: available test targets:
+    business_entity
+    churn_model
+    complaint_analytics
+    complaints
+    custodial_trust
+    customer_identity
+    determinism
+    economics
+    incident
+    offers
+    payment_hub
+    population
+    pricing
+    reconciliation
+    risk_appetite
+    risk_scoring
+    segment_profitability

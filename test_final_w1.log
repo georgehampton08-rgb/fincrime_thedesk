@@ -1,0 +1,136 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test 
+business_entity --t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+   Compiling fincrime-core v0.1.0 (
+C:\Users\georg\fincrime_thedesk\cor
+e)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.77s
+     Running 
+tests\business_entity.rs (target\de
+bug\deps\business_entity-45481011b9
+b2a448.exe)
+
+running 8 tests
+test account_type_config_seeded ... ok
+test account_type_categories_assigned ... ok
+test business_entity_generated_for_small_business ... ok
+test shell_company_indicators_set ... ok
+test marital_status_assigned_to_all ... ok
+test beneficiaries_created_for_married ... ok
+test dba_names_assigned ... ok
+test ein_format_is_valid ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.33s
+
+     Running tests\churn_model.rs (
+target\debug\deps\churn_model-1da7d
+eb1a66f1888.exe)
+
+running 6 tests
+test churn_score_components_are_non_negative ... ok
+test churn_cohorts_track_primary_driver has been running for over 60 seconds
+test churn_scores_computed_every_30_ticks has been running for over 60 seconds
+test determinism_holds_with_churn_model has been running for over 60 seconds
+test life_events_generated_probabilistically has been running for over 60 seconds
+test retention_offer_reduces_churn_risk has been running for over 60 seconds
+test churn_scores_computed_every_30_ticks ... ok
+test retention_offer_reduces_churn_risk ... ok
+test determinism_holds_with_churn_model ... ok
+test churn_cohorts_track_primary_driver ... ok
+test life_events_generated_probabilistically ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1591.83s
+
+     Running 
+tests\complaint_analytics.rs (targe
+t\debug\deps\complaint_analytics-35
+2b7e22f6ef9120.exe)
+
+running 5 tests
+test sla_snapshots_written_every_7_ticks ... ok
+test sla_snapshot_priority_coverage ... ok
+test analytics_runs_without_error_over_90_ticks has been running for over 60 seconds
+test determinism_holds_with_complaint_analytics has been running for over 60 seconds
+test repeat_complainers_identified_without_error has been running for over 60 seconds
+test analytics_runs_without_error_over_90_ticks ... ok
+test determinism_holds_with_complaint_analytics ... ok
+test repeat_complainers_identified_without_error ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 496.50s
+
+     Running tests\complaints.rs (t
+arget\debug\deps\complaints-a90fa04
+5c2ab25a9.exe)
+
+running 5 tests
+test complaint_backlog_equals_open_count has been running for over 60 seconds
+test complaint_resolution_affects_satisfaction has been running for over 60 seconds
+test fee_charged_generates_complaint has been running for over 60 seconds
+test fee_events_precede_complaints has been running for over 60 seconds
+test sla_aging_breaches_overdue_complaints has been running for over 60 seconds
+test sla_aging_breaches_overdue_complaints ... ok
+test fee_events_precede_complaints ... ok
+test fee_charged_generates_complaint ... ok
+test complaint_resolution_affects_satisfaction ... ok
+test complaint_backlog_equals_open_count ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 64.55s
+

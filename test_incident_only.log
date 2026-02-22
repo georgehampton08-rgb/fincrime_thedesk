@@ -1,0 +1,108 @@
+﻿cargo : warning: unused variable: `tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --no-fail-fast --test inci 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotS    
+pecified: (warning: unused var    iable: 
+`tick`:String) [], Remo    teException
+    + FullyQualifiedErrorId : Nati    
+veCommandError
+ 
+   --> core\src\customer_subsystem.rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an underscore: 
+`_tick`
+    |
+    = note: `#[warn(unused_variables)]` 
+(part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an underscore: 
+`_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an underscore: 
+`_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this is 
+intentional, prefix it with an underscore: 
+`_tick`
+
+warning: `fincrime-core` (lib) generated 4 
+warnings (run `cargo fix --lib -p 
+fincrime-core` to apply 4 suggestions)
+   Compiling fincrime-core v0.1.0 
+(C:\Users\georg\fincrime_thedesk\core)
+    Finished `test` profile [unoptimized + 
+debuginfo] target(s) in 0.67s
+     Running tests\incident.rs (target\debu
+g\deps\incident-e22c51b243d684a2.exe)
+
+running 7 tests
+test cascading_impacts_applied ... FAILED
+test incident_determinism ... FAILED
+test incidents_generated_over_time ... FAILED
+test incidents_resolve ... FAILED
+test sla_breaches_detected ... FAILED
+test system_components_seeded ... ok
+test system_metrics_computed ... ok
+
+failures:
+
+---- cascading_impacts_applied stdout ----
+
+thread 'cascading_impacts_applied' (31688) panicked at core\tests\incident.rs:83:27:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "no such column: tick_opened", sql: "SELECT tick_opened FROM account WHERE run_id = ? AND account_id = ?", offset: 7 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- incident_determinism stdout ----
+
+thread 'incident_determinism' (3340) panicked at core\tests\incident.rs:119:28:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "no such column: tick_opened", sql: "SELECT tick_opened FROM account WHERE run_id = ? AND account_id = ?", offset: 7 })
+
+---- incidents_generated_over_time stdout ----
+
+thread 'incidents_generated_over_time' (35284) panicked at core\tests\incident.rs:33:26:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "no such column: tick_opened", sql: "SELECT tick_opened FROM account WHERE run_id = ? AND account_id = ?", offset: 7 })
+
+---- incidents_resolve stdout ----
+
+thread 'incidents_resolve' (36296) panicked at core\tests\incident.rs:48:27:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "no such column: tick_opened", sql: "SELECT tick_opened FROM account WHERE run_id = ? AND account_id = ?", offset: 7 })
+
+---- sla_breaches_detected stdout ----
+
+thread 'sla_breaches_detected' (36768) panicked at core\tests\incident.rs:64:27:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "no such column: tick_opened", sql: "SELECT tick_opened FROM account WHERE run_id = ? AND account_id = ?", offset: 7 })
+
+
+failures:
+    cascading_impacts_applied
+    incident_determinism
+    incidents_generated_over_time
+    incidents_resolve
+    sla_breaches_detected
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 414.24s
+
+error: test failed, to rerun pass `--test 
+incident`
+error: 1 target failed:
+    `--test incident`

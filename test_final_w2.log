@@ -1,0 +1,132 @@
+﻿cargo : warning: unused variable: 
+`tick`
+At line:1 char:1
++ cargo test --manifest-path 
+core/Cargo.toml --test 
+custodial_trust --t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo          : NotS 
+   pecified: (warning: unused var  
+  iable: `tick`:String) [], Remo   
+ teException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+   --> core\src\customer_subsystem.
+rs:459:9
+    |
+459 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+    |
+    = note: 
+`#[warn(unused_variables)]` (part 
+of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:688:9
+    |
+688 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:808:9
+    |
+808 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: unused variable: `tick`
+   --> core\src\customer_subsystem.
+rs:958:9
+    |
+958 |         tick: Tick,
+    |         ^^^^ help: if this 
+is intentional, prefix it with an 
+underscore: `_tick`
+
+warning: `fincrime-core` (lib) 
+generated 4 warnings (run `cargo 
+fix --lib -p fincrime-core` to 
+apply 4 suggestions)
+   Compiling fincrime-core v0.1.0 (
+C:\Users\georg\fincrime_thedesk\cor
+e)
+    Finished `test` profile 
+[unoptimized + debuginfo] 
+target(s) in 0.84s
+     Running 
+tests\custodial_trust.rs (target\de
+bug\deps\custodial_trust-14e0736220
+a20230.exe)
+
+running 8 tests
+test high_risk_country_ofac_screening ... ok
+test custodial_state_governed ... ok
+test custodial_account_query_works ... ok
+test trust_beneficiaries_exist_for_trusts ... ok
+test ofac_flagged_query_works ... ok
+test pep_query_works ... ok
+test trust_account_query_works ... ok
+test international_customers_created ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.43s
+
+     Running 
+tests\customer_identity.rs (target\
+debug\deps\customer_identity-a065ab
+f98d4ebcdb.exe)
+
+running 8 tests
+test address_types_are_valid ... ok
+test phone_records_created_for_all_customers ... ok
+test phone_numbers_are_formatted_correctly ... ok
+test synthetic_identity_rate_is_plausible ... ok
+test identity_records_created_for_all_customers ... ok
+test ssn_format_is_valid ... ok
+test address_records_created_for_all_customers ... ok
+test identity_generation_is_deterministic ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.85s
+
+     Running tests\determinism.rs (
+target\debug\deps\determinism-a610f
+fb5bf76da3f.exe)
+
+running 4 tests
+test engine_pauses_and_resumes_correctly ... ok
+test different_seeds_produce_different_logs has been running for over 60 seconds
+test macro_updates_on_quarterly_boundaries_only has been running for over 60 seconds
+test same_seed_produces_identical_event_logs has been running for over 60 seconds
+test macro_updates_on_quarterly_boundaries_only ... ok
+test different_seeds_produce_different_logs ... ok
+test same_seed_produces_identical_event_logs ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2609.90s
+
+     Running tests\economics.rs (ta
+rget\debug\deps\economics-d7ea1efc9
+a9f436b.exe)
+
+running 5 tests
+test efficiency_ratio_computed_correctly has been running for over 60 seconds
+test fee_income_accumulates_from_transactions has been running for over 60 seconds
+test multiple_quarters_produce_multiple_snapshots has been running for over 60 seconds
+test nim_within_realistic_range has been running for over 60 seconds
+test pnl_computed_on_quarterly_boundaries has been running for over 60 seconds
+test efficiency_ratio_computed_correctly ... ok
+test nim_within_realistic_range ... ok
+test fee_income_accumulates_from_transactions ... ok
+test pnl_computed_on_quarterly_boundaries ... ok
+test multiple_quarters_produce_multiple_snapshots ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 519.58s
+
